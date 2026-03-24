@@ -27,7 +27,7 @@ def webhook():
         if isinstance(val, list) and len(val) > 0:
             val = val[0]
         # Escape single quotes and handle empty values
-        return str(val).replace("'", "\\'").strip() if val else ""
+        return str(val).replace("'", "''").strip() if val else ""
 
     if intent_name == "GetPrimarySymptoms":
         return get_primary_symptoms(clean(parameters.get('disease')))
