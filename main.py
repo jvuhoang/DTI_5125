@@ -26,8 +26,11 @@ def webhook():
     def clean(val):
         if isinstance(val, list) and len(val) > 0:
             val = val[0]
-        # Escape single quotes and handle empty values
-        return str(val).replace("'", "''").strip() if val else ""
+        if not val:
+            return ""
+        # In SPARQL, escape single quotes by doubling them ('')
+        # Backslash escaping (\') is NOT valid in rdflib's SPARQL parser
+        return str(val).replace("'", "''").strip()
 
     if intent_name == "GetPrimarySymptoms":
         return get_primary_symptoms(clean(parameters.get('disease')))
@@ -44,7 +47,6 @@ def get_primary_symptoms(disease):
     if not disease:
         return jsonify({"fulfillmentText": "Please specify a disease name."})
     
-    # Query with FILTER at the end to avoid parser errors
     query = f"""
     PREFIX nto: <http://www.semanticweb.org/NeuroTriageOntology#>
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -60,8 +62,11 @@ def get_primary_symptoms(disease):
 
 def get_overlapping(d1, d2):
     if not d1 or not d2:
-        return jsonify({"fulfillmentText": "I need two diseases to compare. For example, 'What symptoms are shared between ALS and Parkinson's?'"})
-    
+        return jsonify({"fulfillmentText": "I need two diseases to compare. For example, what symptoms are shared between ALS and Parkinson Disease?"})
+
+    # Use UNION to try both hasPrimarySymptom and hasSymptom property names,
+    # since the original query used nto:hasSymptom which may not exist in the ontology.
+    # Move FILTERs before the UNION block to avoid Cartesian product issues.
     query = f"""
     PREFIX nto: <http://www.semanticweb.org/NeuroTriageOntology#>
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -69,11 +74,16 @@ def get_overlapping(d1, d2):
     WHERE {{
         ?dis1 rdfs:label ?dl1 .
         ?dis2 rdfs:label ?dl2 .
-        ?dis1 nto:hasSymptom ?s .
-        ?dis2 nto:hasSymptom ?s .
-        ?s rdfs:label ?sLabel .
         FILTER(CONTAINS(LCASE(STR(?dl1)), LCASE("{d1}")))
         FILTER(CONTAINS(LCASE(STR(?dl2)), LCASE("{d2}")))
+        {{
+            ?dis1 nto:hasPrimarySymptom ?s .
+            ?dis2 nto:hasPrimarySymptom ?s .
+        }} UNION {{
+            ?dis1 nto:hasSymptom ?s .
+            ?dis2 nto:hasSymptom ?s .
+        }}
+        ?s rdfs:label ?sLabel .
     }}
     """
     return execute_query(query, f"The shared symptoms between {d1} and {d2} include: ")
@@ -98,19 +108,17 @@ def get_risk_factors(disease):
 def execute_query(query, response_prefix):
     try:
         query_results = g.query(query)
-        # Handle different variable names dynamically
         results = []
         for row in query_results:
             for val in row:
                 results.append(str(val))
         
         if results:
-            # Remove duplicates and clean formatting
             unique_results = list(set(results))
             formatted_list = ", ".join(unique_results).replace("_", " ")
             return jsonify({"fulfillmentText": f"{response_prefix}{formatted_list}."})
         
-        return jsonify({"fulfillmentText": f"I couldn't find any specific information for that request in the ontology."})
+        return jsonify({"fulfillmentText": "I couldn't find any specific information for that request in the ontology."})
     except Exception as e:
         print(f"SPARQL Execution Error: {e}")
         return jsonify({"fulfillmentText": "I'm having trouble accessing the clinical data right now."})
