@@ -1,15 +1,20 @@
 """
-NARQ - Neurological Abstracts Retrieval & Q&A
-Dialogflow CX Webhook — render.com deployment
-Course: DTI5125 Data Science Applications
-Authors: Adjmal, Younoussa | Pathan, Ferdous | Hoang, Julian Vu
+NARQ — Neurodegenerative Disease Triage Webhook
+Dialogflow ES (v2) + CX dual-format webhook for render.com
 
-Handles intents:
-  - ReportSymptoms / GetPrimarySymptoms
-  - GetTriageResult / GetDiseaseFromSymptom
-  - DifferentiateByDisease
-  - GetOverlappingSymptoms
-  - GetRiskFactors / GetLifestyleRiskFactors
+Ontology source: NeuroTriageOntology.owl (NTO v1.0.0)
+  Diseases : Alzheimer's Disease | ALS | Parkinson's Disease
+  Relations: hasPrimarySymptom · hasSymptom · hasOverlappingSymptom
+             hasRiskFactor · hasProtectiveFactor · hasContradictoryFactor
+             moreTypicalOf · belongsToSymptomCategory · belongsToFactorCategory
+
+Competency questions answered:
+  CQ1  What are the symptoms of <disease>?
+  CQ2  Given my symptoms, what diseases might I have?
+  CQ3  How do I differentiate between Alzheimer's / ALS / Parkinson's?
+  CQ4  What are the overlapping symptoms between two diseases?
+  CQ5  What are the risk factors for <disease>?
+  CQ6  What lifestyle factors affect <disease>?
 """
 
 import os
@@ -17,250 +22,322 @@ import json
 import logging
 from flask import Flask, request, jsonify
 
-# ── logging ──────────────────────────────────────────────────────────────────
+# ── logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s  %(levelname)-8s  %(message)s")
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# ═════════════════════════════════════════════════════════════════════════════
-# ONTOLOGY  (inline — replace with DB / FAISS calls in production)
-# ═════════════════════════════════════════════════════════════════════════════
 
-# Maps each disease to its canonical symptom list, risk factors, and
-# lifestyle risk factors. Keep everything lower-case for easy matching.
+# =============================================================================
+# ONTOLOGY  — faithful translation of NeuroTriageOntology.owl
+# Each symptom / factor entry carries:
+#   "label"    : human-readable display string (from rdfs:label / rdfs:comment)
+#   "category" : belongsToSymptomCategory / belongsToFactorCategory
+#   "typical"  : moreTypicalOf (symptoms only, omitted when not asserted)
+# =============================================================================
 
-ONTOLOGY: dict = {
-    "alzheimers": {
+# ── Symptom catalogue ────────────────────────────────────────────────────────
+SYMPTOMS: dict[str, dict] = {
+    # Motor
+    "resting_tremor":            {"label": "Resting Tremor",                        "category": "Motor",                  "typical": "parkinsons_disease"},
+    "bradykinesia_symptom":      {"label": "Bradykinesia (slowness of movement)",   "category": "Motor",                  "typical": "parkinsons_disease"},
+    "rigidity_symptom":          {"label": "Rigidity",                              "category": "Motor",                  "typical": "parkinsons_disease"},
+    "postural_instability":      {"label": "Postural Instability",                  "category": "Motor",                  "typical": "parkinsons_disease"},
+    "gait_disturbance":          {"label": "Gait Disturbance (shuffling/freezing)", "category": "Motor",                  "typical": "parkinsons_disease"},
+    "akinesia_symptom":          {"label": "Akinesia (absence of movement)",        "category": "Motor",                  "typical": "parkinsons_disease"},
+    "hypomimia_symptom":         {"label": "Hypomimia (masked face)",               "category": "Motor",                  "typical": "parkinsons_disease"},
+    "limb_weakness":             {"label": "Limb Weakness",                         "category": "Motor",                  "typical": "als_disease"},
+    "axial_weakness":            {"label": "Axial Weakness (trunk)",                "category": "Motor",                  "typical": "als_disease"},
+    "muscle_weakness":           {"label": "Muscle Weakness",                       "category": "Motor",                  "typical": "als_disease"},
+    # Speech & Swallowing
+    "bulbar_dysfunction":        {"label": "Bulbar Dysfunction",                    "category": "Speech & Swallowing",    "typical": "als_disease"},
+    "dysarthria_symptom":        {"label": "Dysarthria (slurred speech)",           "category": "Speech & Swallowing",    "typical": "als_disease"},
+    "dysphagia_symptom":         {"label": "Dysphagia (difficulty swallowing)",     "category": "Speech & Swallowing"},
+    "hypophonia_symptom":        {"label": "Hypophonia (soft/quiet voice)",         "category": "Speech & Swallowing",    "typical": "parkinsons_disease"},
+    "pseudobulbar_affect":       {"label": "Pseudobulbar Affect",                   "category": "Speech & Swallowing",    "typical": "als_disease"},
+    # Cognitive
+    "episodic_memory_impairment":{"label": "Episodic Memory Impairment",            "category": "Cognitive",              "typical": "alzheimers_disease"},
+    "memory_impairment":         {"label": "Memory Impairment",                     "category": "Cognitive",              "typical": "alzheimers_disease"},
+    "language_impairment":       {"label": "Language Impairment (aphasia)",         "category": "Cognitive",              "typical": "alzheimers_disease"},
+    "impaired_reasoning":        {"label": "Impaired Reasoning / Judgment",         "category": "Cognitive",              "typical": "alzheimers_disease"},
+    "cognitive_psychiatric_als": {"label": "Cognitive & Psychiatric Symptoms (ALS subset)", "category": "Cognitive"},
+    "confusion_symptom":         {"label": "Confusion / Disorientation",            "category": "Cognitive"},
+    # Behavioural / Psychiatric
+    "depression_symptom":        {"label": "Depression",                            "category": "Behavioural & Psychiatric"},
+    "anxiety_symptom":           {"label": "Anxiety",                               "category": "Behavioural & Psychiatric"},
+    "hallucination_symptom":     {"label": "Hallucinations",                        "category": "Behavioural & Psychiatric", "typical": "parkinsons_disease"},
+    "neuropsychiatric_dysfunction": {"label": "Neuropsychiatric Dysfunction",       "category": "Behavioural & Psychiatric", "typical": "parkinsons_disease"},
+    # Autonomic
+    "constipation_symptom":      {"label": "Constipation",                          "category": "Autonomic",              "typical": "parkinsons_disease"},
+    "autonomic_dysfunction_symptom": {"label": "Autonomic Dysfunction",             "category": "Autonomic",              "typical": "parkinsons_disease"},
+    "autonomic_symptoms_als":    {"label": "Autonomic Symptoms (ALS)",              "category": "Autonomic"},
+    "olfactory_dysfunction":     {"label": "Olfactory Dysfunction (loss of smell)", "category": "Autonomic",              "typical": "parkinsons_disease"},
+    # Sleep
+    "sleep_disturbance":         {"label": "Sleep Disturbance / REM disorder",      "category": "Sleep"},
+    # Respiratory
+    "respiratory_impairment":    {"label": "Respiratory Impairment",                "category": "Respiratory",            "typical": "als_disease"},
+    # Sensory
+    "sensory_symptom_als":       {"label": "Sensory Symptoms (ALS)",                "category": "Sensory"},
+}
+
+# ── Factor catalogue ─────────────────────────────────────────────────────────
+FACTORS: dict[str, dict] = {
+    # Genetic
+    "apoe_e4":              {"label": "APOE e4 allele",                              "category": "Genetic"},
+    "app_mutation":         {"label": "APP gene mutation",                           "category": "Genetic"},
+    "psen1_mutation":       {"label": "PSEN1 gene mutation",                         "category": "Genetic"},
+    "lrrk2_mutation":       {"label": "LRRK2 gene mutation",                         "category": "Genetic"},
+    "snca_mutation":        {"label": "SNCA gene mutation",                          "category": "Genetic"},
+    "c9orf72_repeat":       {"label": "C9orf72 hexanucleotide repeat expansion",     "category": "Genetic"},
+    "sod1_mutation":        {"label": "SOD1 gene mutation",                          "category": "Genetic"},
+    "family_history":       {"label": "Family history of neurodegenerative disease", "category": "Genetic"},
+    # Lifestyle
+    "aerobic_exercise":     {"label": "Aerobic Exercise (protective)",               "category": "Lifestyle"},
+    "physical_inactivity":  {"label": "Physical Inactivity",                         "category": "Lifestyle"},
+    "smoking":              {"label": "Smoking",                                     "category": "Lifestyle"},
+    "alcohol_consumption":  {"label": "Alcohol Consumption",                         "category": "Lifestyle"},
+    "coffee_drinking":      {"label": "Coffee / Caffeine Consumption",               "category": "Lifestyle"},
+    "mediterranean_diet":   {"label": "Mediterranean Diet (protective)",             "category": "Lifestyle"},
+    "obesity":              {"label": "Obesity",                                     "category": "Lifestyle"},
+    "depression_factor":    {"label": "History of Depression",                       "category": "Lifestyle"},
+    "low_education":        {"label": "Low Level of Education",                      "category": "Lifestyle"},
+    "high_education":       {"label": "High Level of Education (protective)",        "category": "Lifestyle"},
+    "stress":               {"label": "Chronic Stress",                              "category": "Lifestyle"},
+    # Epidemiological
+    "advanced_age":         {"label": "Advanced Age (65+)",                          "category": "Epidemiological"},
+    "head_trauma":          {"label": "Head Trauma / TBI",                           "category": "Epidemiological"},
+    "hypertension_factor":  {"label": "Hypertension",                                "category": "Epidemiological"},
+    "diabetes_factor":      {"label": "Diabetes (Type 2)",                           "category": "Epidemiological"},
+    "air_pollution":        {"label": "Air Pollution",                               "category": "Epidemiological"},
+    "pesticide_exposure":   {"label": "Pesticide Exposure",                          "category": "Epidemiological"},
+    "occupational_exposure":{"label": "Occupational Exposure (heavy metals/solvents)","category": "Epidemiological"},
+    "military_service":     {"label": "Military Service",                            "category": "Epidemiological"},
+    "cerebrovascular_disease_factor": {"label": "Cerebrovascular Disease",          "category": "Epidemiological"},
+}
+
+# ── Disease instances — direct translation of owl:NamedIndividual ─────────────
+ONTOLOGY: dict[str, dict] = {
+    "alzheimers_disease": {
         "label": "Alzheimer's Disease",
+        "description": (
+            "A progressive neurodegenerative disease primarily characterised by "
+            "episodic memory impairment, language deterioration, and cognitive decline. "
+            "Most common cause of dementia."
+        ),
         "primary_symptoms": [
-            "memory loss",
-            "confusion",
-            "disorientation",
-            "difficulty with language",
-            "mood changes",
-            "difficulty with daily tasks",
-            "poor judgment",
-            "withdrawal from social activities",
+            "episodic_memory_impairment", "memory_impairment",
+            "language_impairment", "impaired_reasoning",
+        ],
+        "secondary_symptoms": [
+            "depression_symptom", "anxiety_symptom", "sleep_disturbance",
+            "hallucination_symptom", "cognitive_psychiatric_als",
+        ],
+        "overlapping_symptoms": [
+            "confusion_symptom", "dysphagia_symptom",
         ],
         "risk_factors": [
-            "age (65+)",
-            "family history / genetics (APOE-e4 allele)",
-            "down syndrome",
-            "traumatic brain injury",
-            "cardiovascular disease",
-            "diabetes",
-            "hypertension",
-            "obesity",
+            "apoe_e4", "app_mutation", "psen1_mutation", "family_history",
+            "advanced_age", "head_trauma", "hypertension_factor",
+            "diabetes_factor", "air_pollution", "obesity", "depression_factor",
+            "low_education", "stress", "physical_inactivity", "smoking",
+            "cerebrovascular_disease_factor",
         ],
-        "lifestyle_risk_factors": [
-            "physical inactivity",
-            "smoking",
-            "excessive alcohol consumption",
-            "poor diet (high saturated fat, low Mediterranean diet)",
-            "social isolation",
-            "poor sleep",
-            "chronic stress",
-            "low cognitive engagement / education level",
+        "protective_factors": [
+            "aerobic_exercise", "mediterranean_diet", "high_education",
+        ],
+        "contradictory_factors": [
+            "coffee_drinking", "alcohol_consumption",
         ],
         "differentiators": [
-            "gradual memory decline is the hallmark onset",
-            "hippocampal atrophy visible on MRI",
-            "amyloid plaques and tau tangles are pathological markers",
-            "language difficulty (aphasia) more prominent than in Parkinson's",
-            "motor symptoms appear only in later stages unlike Parkinson's",
+            "Gradual episodic memory loss is the hallmark early sign",
+            "Hippocampal atrophy visible on MRI; amyloid plaques and tau tangles are pathological markers",
+            "Language difficulty (aphasia) more prominent than in Parkinson's or ALS",
+            "Motor symptoms appear only in later stages — unlike Parkinson's or ALS",
+            "APOE e4 allele is the strongest known genetic risk factor",
         ],
     },
 
-    "als": {
-        "label": "ALS / Huntington's Disease",
+    "als_disease": {
+        "label": "ALS (Amyotrophic Lateral Sclerosis)",
+        "description": (
+            "A fatal motor neuron disease characterised by progressive upper and lower "
+            "motor neuron degeneration leading to limb weakness, bulbar dysfunction, "
+            "and respiratory failure."
+        ),
         "primary_symptoms": [
-            "progressive muscle weakness",
-            "muscle atrophy",
-            "fasciculations (muscle twitching)",
-            "spasticity",
-            "dysarthria (slurred speech)",
-            "dysphagia (difficulty swallowing)",
-            "breathing difficulties",
-            "involuntary movements (Huntington's chorea)",
-            "cognitive decline (Huntington's)",
-            "psychiatric symptoms (Huntington's)",
+            "limb_weakness", "muscle_weakness", "bulbar_dysfunction",
+            "respiratory_impairment", "dysarthria_symptom",
+            "dysphagia_symptom", "axial_weakness",
+        ],
+        "secondary_symptoms": [
+            "pseudobulbar_affect", "autonomic_symptoms_als",
+            "sensory_symptom_als", "sleep_disturbance", "cognitive_psychiatric_als",
+        ],
+        "overlapping_symptoms": [
+            "confusion_symptom", "depression_symptom",
         ],
         "risk_factors": [
-            "genetic mutations (SOD1, C9orf72 for ALS; HTT CAG repeat for Huntington's)",
-            "age (40-70 for ALS)",
-            "military service (ALS)",
-            "family history",
-            "male sex (slightly higher ALS risk)",
+            "c9orf72_repeat", "sod1_mutation", "family_history",
+            "advanced_age", "military_service", "occupational_exposure",
+            "pesticide_exposure",
         ],
-        "lifestyle_risk_factors": [
-            "smoking (ALS association)",
-            "heavy physical exertion / contact sports (ALS hypothesis)",
-            "exposure to pesticides or heavy metals",
-            "high-intensity athletic activity (ALS hypothesis)",
-        ],
+        "protective_factors": [],
+        "contradictory_factors": [],
         "differentiators": [
-            "ALS: both upper and lower motor neuron signs",
-            "Huntington's: autosomal dominant — genetic test (CAG repeat) is definitive",
-            "ALS: no genetic pre-test needed for diagnosis; EMG is key",
-            "Huntington's: involuntary choreiform movements are distinctive",
-            "motor decline is central — cognitive changes lag unlike Alzheimer's",
+            "Rapid progressive limb weakness and respiratory failure are the hallmarks",
+            "Both upper (spasticity) and lower (fasciculations, wasting) motor neuron signs present",
+            "Bulbar onset (speech/swallowing difficulty) is the presenting feature in ~25% of cases",
+            "No primary memory loss — cognitive changes are frontotemporal and affect only a subset",
+            "EMG is the key diagnostic test; C9orf72 / SOD1 genetic testing for familial cases",
         ],
     },
 
-    "dementia": {
-        "label": "Dementia / Mild Cognitive Impairment (MCI)",
-        "primary_symptoms": [
-            "memory loss (short-term)",
-            "confusion",
-            "disorientation",
-            "personality changes",
-            "difficulty with complex tasks",
-            "impaired reasoning",
-            "language problems",
-            "getting lost in familiar places",
-        ],
-        "risk_factors": [
-            "age (65+)",
-            "family history",
-            "cardiovascular disease",
-            "diabetes",
-            "hypertension",
-            "high cholesterol",
-            "depression",
-            "prior stroke",
-        ],
-        "lifestyle_risk_factors": [
-            "physical inactivity",
-            "poor diet",
-            "smoking",
-            "excessive alcohol",
-            "social isolation",
-            "poor sleep quality",
-            "low educational attainment",
-        ],
-        "differentiators": [
-            "MCI: subjective cognitive complaint but daily function preserved",
-            "dementia: functional impairment distinguishes it from MCI",
-            "vascular dementia: stepwise decline linked to stroke events",
-            "Lewy body dementia: visual hallucinations and REM sleep disorder",
-            "overlaps heavily with Alzheimer's — biomarker tests help distinguish",
-        ],
-    },
-
-    "parkinsons": {
+    "parkinsons_disease": {
         "label": "Parkinson's Disease",
+        "description": (
+            "A progressive neurodegenerative disease characterised by dopaminergic neuron "
+            "loss in the substantia nigra, producing a triad of resting tremor, rigidity, "
+            "and bradykinesia."
+        ),
         "primary_symptoms": [
-            "resting tremor",
-            "bradykinesia (slowness of movement)",
-            "muscle rigidity",
-            "postural instability",
-            "shuffling gait",
-            "loss of smell (anosmia)",
-            "sleep disturbances (REM behaviour disorder)",
-            "constipation",
-            "micrographia (small handwriting)",
+            "resting_tremor", "bradykinesia_symptom", "rigidity_symptom",
+            "postural_instability", "gait_disturbance",
+            "akinesia_symptom", "hypomimia_symptom",
+        ],
+        "secondary_symptoms": [
+            "dysarthria_symptom", "dysphagia_symptom", "constipation_symptom",
+            "sleep_disturbance", "hallucination_symptom", "depression_symptom",
+            "anxiety_symptom", "autonomic_dysfunction_symptom",
+            "olfactory_dysfunction", "neuropsychiatric_dysfunction",
+            "hypophonia_symptom",
+        ],
+        "overlapping_symptoms": [
+            "confusion_symptom",
         ],
         "risk_factors": [
-            "age (60+)",
-            "male sex",
-            "family history (LRRK2, SNCA, PINK1 mutations)",
-            "exposure to pesticides / herbicides",
-            "traumatic brain injury",
-            "rural living (well-water / herbicide exposure)",
+            "lrrk2_mutation", "snca_mutation", "family_history",
+            "advanced_age", "pesticide_exposure", "depression_factor",
+            "air_pollution",
         ],
-        "lifestyle_risk_factors": [
-            "pesticide / herbicide exposure (farming)",
-            "physical inactivity",
-            "smoking (paradoxically associated with lower risk in epidemiology)",
-            "high dairy consumption (possible association)",
-            "head trauma history",
+        "protective_factors": [
+            "aerobic_exercise",
         ],
+        "contradictory_factors": [],
         "differentiators": [
-            "resting tremor ('pill-rolling') is the hallmark — not intention tremor",
-            "asymmetric onset distinguishes it from most other movement disorders",
-            "levodopa responsiveness is a diagnostic criterion",
-            "anosmia and REM sleep disorder are early non-motor clues",
-            "no prominent memory loss at onset unlike Alzheimer's",
-        ],
-    },
-
-    "stroke": {
-        "label": "Stroke",
-        "primary_symptoms": [
-            "sudden facial drooping",
-            "sudden arm weakness (unilateral)",
-            "sudden speech difficulty",
-            "sudden vision loss",
-            "sudden severe headache ('thunderclap')",
-            "sudden loss of balance or coordination",
-            "confusion",
-            "numbness on one side of the body",
-        ],
-        "risk_factors": [
-            "hypertension (leading modifiable risk factor)",
-            "atrial fibrillation",
-            "diabetes",
-            "high cholesterol",
-            "age (55+)",
-            "family history",
-            "prior stroke or TIA",
-            "carotid artery disease",
-            "sickle cell disease",
-        ],
-        "lifestyle_risk_factors": [
-            "smoking",
-            "excessive alcohol consumption",
-            "physical inactivity",
-            "poor diet (high sodium, low fruit/vegetable)",
-            "obesity",
-            "stress",
-            "illicit drug use",
-        ],
-        "differentiators": [
-            "sudden onset is the key — neurological symptoms appear within seconds/minutes",
-            "FAST acronym (Face, Arms, Speech, Time) is the clinical screen",
-            "CT/MRI differentiates ischemic vs. haemorrhagic sub-types",
-            "unlike Parkinson's or Alzheimer's, onset is abrupt not insidious",
-            "post-stroke cognitive impairment can mimic dementia but history clarifies",
+            "Resting (pill-rolling) tremor is the hallmark — not intention tremor",
+            "Asymmetric onset distinguishes it from most other movement disorders",
+            "Loss of smell (olfactory dysfunction) and REM sleep behaviour disorder are early non-motor clues",
+            "Levodopa responsiveness is a key diagnostic criterion",
+            "No prominent memory loss at onset — unlike Alzheimer's Disease",
         ],
     },
 }
 
-# Convenient alias map: normalise free-text disease mentions
+# ── Alias map — normalise free-text disease names from Dialogflow ─────────────
 _ALIAS: dict[str, str] = {
-    "alzheimer": "alzheimers",
-    "alzheimers": "alzheimers",
-    "alzheimer's": "alzheimers",
-    "als": "als",
-    "huntington": "als",
-    "huntington's": "als",
-    "amyotrophic lateral sclerosis": "als",
-    "dementia": "dementia",
-    "mci": "dementia",
-    "mild cognitive impairment": "dementia",
-    "parkinson": "parkinsons",
-    "parkinsons": "parkinsons",
-    "parkinson's": "parkinsons",
-    "stroke": "stroke",
-    "cerebrovascular": "stroke",
+    "alzheimer":                     "alzheimers_disease",
+    "alzheimers":                    "alzheimers_disease",
+    "alzheimer's":                   "alzheimers_disease",
+    "alzheimers disease":            "alzheimers_disease",
+    "alzheimer's disease":           "alzheimers_disease",
+    "alzheimer disease":             "alzheimers_disease",
+    "als":                           "als_disease",
+    "amyotrophic lateral sclerosis": "als_disease",
+    "motor neuron disease":          "als_disease",
+    "mnd":                           "als_disease",
+    "parkinson":                     "parkinsons_disease",
+    "parkinsons":                    "parkinsons_disease",
+    "parkinson's":                   "parkinsons_disease",
+    "parkinsons disease":            "parkinsons_disease",
+    "parkinson's disease":           "parkinsons_disease",
+    "parkinson disease":             "parkinsons_disease",
 }
 
-ALL_DISEASES = list(ONTOLOGY.keys())
+# ── Symptom keyword map — for triage (CQ2) ───────────────────────────────────
+_SYMPTOM_KEYWORDS: dict[str, str] = {
+    "tremor":          "resting_tremor",
+    "shaking":         "resting_tremor",
+    "slow":            "bradykinesia_symptom",
+    "slowness":        "bradykinesia_symptom",
+    "bradykinesia":    "bradykinesia_symptom",
+    "stiff":           "rigidity_symptom",
+    "stiffness":       "rigidity_symptom",
+    "rigidity":        "rigidity_symptom",
+    "rigid":           "rigidity_symptom",
+    "balance":         "postural_instability",
+    "fall":            "postural_instability",
+    "falling":         "postural_instability",
+    "gait":            "gait_disturbance",
+    "shuffle":         "gait_disturbance",
+    "shuffling":       "gait_disturbance",
+    "walking":         "gait_disturbance",
+    "frozen":          "akinesia_symptom",
+    "freezing":        "akinesia_symptom",
+    "akinesia":        "akinesia_symptom",
+    "masked":          "hypomimia_symptom",
+    "expressionless":  "hypomimia_symptom",
+    "weakness":        "muscle_weakness",
+    "weak":            "limb_weakness",
+    "limb":            "limb_weakness",
+    "arm":             "limb_weakness",
+    "leg":             "limb_weakness",
+    "muscle":          "muscle_weakness",
+    "atrophy":         "muscle_weakness",
+    "trunk":           "axial_weakness",
+    "slurred":         "dysarthria_symptom",
+    "dysarthria":      "dysarthria_symptom",
+    "speech":          "dysarthria_symptom",
+    "swallow":         "dysphagia_symptom",
+    "swallowing":      "dysphagia_symptom",
+    "dysphagia":       "dysphagia_symptom",
+    "bulbar":          "bulbar_dysfunction",
+    "quiet":           "hypophonia_symptom",
+    "hypophonia":      "hypophonia_symptom",
+    "breathing":       "respiratory_impairment",
+    "breath":          "respiratory_impairment",
+    "respiratory":     "respiratory_impairment",
+    "memory":          "memory_impairment",
+    "forget":          "episodic_memory_impairment",
+    "forgetful":       "episodic_memory_impairment",
+    "recall":          "episodic_memory_impairment",
+    "language":        "language_impairment",
+    "word":            "language_impairment",
+    "aphasia":         "language_impairment",
+    "reason":          "impaired_reasoning",
+    "judgment":        "impaired_reasoning",
+    "confused":        "confusion_symptom",
+    "confusion":       "confusion_symptom",
+    "disoriented":     "confusion_symptom",
+    "depressed":       "depression_symptom",
+    "depression":      "depression_symptom",
+    "anxious":         "anxiety_symptom",
+    "anxiety":         "anxiety_symptom",
+    "hallucin":        "hallucination_symptom",
+    "constipat":       "constipation_symptom",
+    "bowel":           "constipation_symptom",
+    "autonomic":       "autonomic_dysfunction_symptom",
+    "smell":           "olfactory_dysfunction",
+    "anosmia":         "olfactory_dysfunction",
+    "sleep":           "sleep_disturbance",
+    "insomnia":        "sleep_disturbance",
+    "rem":             "sleep_disturbance",
+    "sensory":         "sensory_symptom_als",
+    "numbness":        "sensory_symptom_als",
+    "laughing":        "pseudobulbar_affect",
+    "crying":          "pseudobulbar_affect",
+}
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 # HELPERS
-# ═════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 
 def _normalise_disease(raw: str) -> str | None:
-    """Return canonical disease key from free-text, or None if not found."""
     cleaned = raw.lower().strip()
-    # Try exact match first
     if cleaned in _ALIAS:
         return _ALIAS[cleaned]
-    # Strip common suffixes Dialogflow appends (e.g. "Parkinson's Disease" -> "parkinson's")
     for suffix in (" disease", " disorder", " syndrome", "'s disease", "s disease"):
         if cleaned.endswith(suffix):
             trimmed = cleaned[: -len(suffix)].strip()
@@ -269,459 +346,424 @@ def _normalise_disease(raw: str) -> str | None:
     return None
 
 
-def _extract_diseases_from_params(params: dict) -> list[str]:
-    """
-    Pull disease names out of Dialogflow CX parameters.
-    Dialogflow may send a single string or a list under various keys.
-    """
+def _extract_diseases(params: dict) -> list[str]:
     candidates: list[str] = []
-    for key in ("disease", "diseases", "disease_name", "disease_a", "disease_b",
-                "disease1", "disease2"):
+    for key in ("disease", "diseases", "disease_name",
+                "disease_a", "disease_b", "disease1", "disease2"):
         val = params.get(key)
         if not val:
             continue
         if isinstance(val, list):
-            candidates.extend(val)
+            candidates.extend(str(v) for v in val if v)
         else:
             candidates.append(str(val))
-    return [k for c in candidates if (k := _normalise_disease(c))]
+    seen, result = set(), []
+    for c in candidates:
+        k = _normalise_disease(c)
+        if k and k not in seen:
+            seen.add(k)
+            result.append(k)
+    return result
 
 
-def _extract_symptoms_from_params(params: dict) -> list[str]:
-    """Pull symptom strings out of Dialogflow CX parameters."""
-    val = params.get("symptoms") or params.get("symptom", [])
-    if isinstance(val, str):
-        return [val.lower().strip()]
-    return [s.lower().strip() for s in val] if val else []
+def _extract_symptom_keywords(params: dict) -> list[str]:
+    raw = params.get("symptoms") or params.get("symptom", [])
+    if isinstance(raw, str):
+        return [raw.lower().strip()] if raw.strip() else []
+    return [s.lower().strip() for s in raw if s]
+
+
+def _sym_label(sym_id: str) -> str:
+    return SYMPTOMS.get(sym_id, {}).get("label", sym_id.replace("_", " ").title())
+
+
+def _fac_label(fac_id: str) -> str:
+    return FACTORS.get(fac_id, {}).get("label", fac_id.replace("_", " ").title())
 
 
 def _bullet(items: list[str]) -> str:
-    return "\n".join(f"• {item.capitalize()}" for item in items)
+    return "\n".join(f"• {item}" for item in items)
 
+
+def _all_symptom_ids(dk: str) -> list[str]:
+    d = ONTOLOGY[dk]
+    return d["primary_symptoms"] + d["secondary_symptoms"] + d["overlapping_symptoms"]
+
+
+# ── Response builders ─────────────────────────────────────────────────────────
 
 def _es_response(messages: list[str]) -> dict:
-    """
-    Build a Dialogflow ES (v2) webhook response.
-    ES expects: { "fulfillmentText": "...", "fulfillmentMessages": [...] }
-    """
-    combined = "\n\n".join(messages)
+    combined = "\n\n".join(m for m in messages if m)
     return {
         "fulfillmentText": combined,
         "fulfillmentMessages": [
-            {"text": {"text": [msg]}} for msg in messages
-        ]
+            {"text": {"text": [msg]}} for msg in messages if msg
+        ],
     }
 
 
 def _cx_response(messages: list[str]) -> dict:
-    """
-    Build a Dialogflow CX webhook response.
-    CX expects: { "fulfillment_response": { "messages": [...] } }
-    """
     return {
         "fulfillment_response": {
             "messages": [
-                {"text": {"text": [msg]}} for msg in messages
+                {"text": {"text": [msg]}} for msg in messages if msg
             ]
         }
     }
 
 
 def _respond(messages: list[str], es: bool = False) -> dict:
-    """Auto-select the correct response format."""
     return _es_response(messages) if es else _cx_response(messages)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# INTENT HANDLERS
-# ═════════════════════════════════════════════════════════════════════════════
+# =============================================================================
+# PAYLOAD PARSERS
+# =============================================================================
 
-# ── 1. ReportSymptoms / GetPrimarySymptoms ────────────────────────────────
-
-def handle_get_primary_symptoms(params: dict, es: bool = False) -> dict:
-    """
-    Intents: ReportSymptoms.json, GetPrimarySymptoms.json
-    Returns the primary symptom list for one or more diseases.
-    If no disease is specified, lists all diseases.
-    """
-    diseases = _extract_diseases_from_params(params)
-
-    if not diseases:
-        # No disease specified — list all available diseases
-        disease_list = "\n".join(
-            f"• {info['label']}" for info in ONTOLOGY.values()
-        )
-        return _respond([
-            "I can report symptoms for the following neurological diseases:",
-            disease_list,
-            "Which disease would you like to know about? "
-            "For example: 'What are the symptoms of Parkinson's Disease?'",
-        ], es=es)
-
-    messages = []
-    for dk in diseases:
-        info = ONTOLOGY[dk]
-        messages.append(
-            f"Primary symptoms of {info['label']}:\n{_bullet(info['primary_symptoms'])}"
-        )
-    return _cx_response(messages)
-
-
-# ── 2. GetTriageResult / GetDiseaseFromSymptom ────────────────────────────
-
-def handle_get_triage_result(params: dict, es: bool = False) -> dict:
-    """
-    Intents: GetTriageResult.json, GetDiseaseFromSymptom.json
-    Given a list of user-reported symptoms, scores each disease and returns
-    the most likely candidates.
-    """
-    user_symptoms = _extract_symptoms_from_params(params)
-
-    if not user_symptoms:
-        return _respond([
-            "Please tell me your symptoms so I can help triage. "
-            "For example: 'I have tremor, stiffness, and slow movement.'"
-        ], es=es)
-
-    # Score each disease: count matching keywords
-    scores: dict[str, int] = {}
-    matched_per_disease: dict[str, list[str]] = {}
-
-    for dk, info in ONTOLOGY.items():
-        count = 0
-        matched: list[str] = []
-        for user_s in user_symptoms:
-            for disease_s in info["primary_symptoms"]:
-                if user_s in disease_s or disease_s in user_s:
-                    count += 1
-                    matched.append(disease_s)
-                    break  # avoid double-counting per user symptom
-        scores[dk] = count
-        matched_per_disease[dk] = matched
-
-    # Rank diseases by score, keep those with at least 1 match
-    ranked = sorted(
-        [(dk, sc) for dk, sc in scores.items() if sc > 0],
-        key=lambda x: x[1],
-        reverse=True,
-    )
-
-    if not ranked:
-        return _respond([
-            "I could not match your symptoms to any disease in my knowledge base. "
-            "Please consult a medical professional for a proper diagnosis.",
-            "Try describing symptoms such as: tremor, memory loss, weakness, "
-            "sudden speech difficulty, etc.",
-        ], es=es)
-
-    messages = [
-        f"Based on the symptoms you reported ({', '.join(user_symptoms)}), "
-        f"here are the possible conditions:"
-    ]
-
-    for dk, score in ranked[:3]:  # top 3
-        info = ONTOLOGY[dk]
-        matched = matched_per_disease[dk]
-        messages.append(
-            f"{'🔴' if score == ranked[0][1] else '🟡'} {info['label']} "
-            f"({score} symptom(s) matched)\n"
-            f"  Matching: {', '.join(matched)}"
-        )
-
-    messages.append(
-        "⚠️ This is informational only and not a medical diagnosis. "
-        "Please consult a qualified neurologist."
-    )
-    return _cx_response(messages)
-
-
-# ── 3. DifferentiateByDisease ─────────────────────────────────────────────
-
-def handle_differentiate_by_disease(params: dict, es: bool = False) -> dict:
-    """
-    Intent: DifferentiateByDisease.json
-    Explains how to differentiate between two or more specified diseases.
-    Default: Parkinson's vs ALS vs Alzheimer's.
-    """
-    diseases = _extract_diseases_from_params(params)
-
-    # Default comparison if none or only one is specified
-    if len(diseases) < 2:
-        diseases = ["alzheimers", "als", "parkinsons"]
-
-    messages = [
-        f"Here is how to differentiate between "
-        f"{', '.join(ONTOLOGY[d]['label'] for d in diseases)}:"
-    ]
-
-    for dk in diseases:
-        info = ONTOLOGY[dk]
-        messages.append(
-            f"━━ {info['label']} ━━\n"
-            + _bullet(info["differentiators"])
-        )
-
-    # Add a cross-disease comparison note for the common pair Alzheimer's / dementia
-    if set(diseases) >= {"alzheimers", "dementia"}:
-        messages.append(
-            "📌 Note: Alzheimer's Disease is the most common cause of Dementia (~60-70%). "
-            "Key differentiators include biomarker results (amyloid PET, CSF tau/Aβ42) "
-            "and rate of progression."
-        )
-
-    return _cx_response(messages)
-
-
-# ── 4. GetOverlappingSymptoms ─────────────────────────────────────────────
-
-def handle_get_overlapping_symptoms(params: dict, es: bool = False) -> dict:
-    """
-    Intent: GetOverlappingSymptoms.json
-    Returns the symptom intersection between exactly two diseases.
-    """
-    diseases = _extract_diseases_from_params(params)
-
-    if len(diseases) < 2:
-        return _respond([
-            "Please specify two diseases to compare. "
-            "For example: 'What symptoms overlap between Alzheimer's and Dementia?'"
-        ], es=es)
-
-    d1_key, d2_key = diseases[0], diseases[1]
-    d1_info, d2_info = ONTOLOGY[d1_key], ONTOLOGY[d2_key]
-
-    set1 = set(d1_info["primary_symptoms"])
-    set2 = set(d2_info["primary_symptoms"])
-    overlap = sorted(set1 & set2)
-
-    only_d1 = sorted(set1 - set2)
-    only_d2 = sorted(set2 - set1)
-
-    if not overlap:
-        msg = (
-            f"There are no exact symptom overlaps between "
-            f"{d1_info['label']} and {d2_info['label']} "
-            f"in the current ontology. Their symptom profiles are largely distinct."
-        )
-        return _respond([msg], es=es)
-
-    messages = [
-        f"Overlapping symptoms between {d1_info['label']} "
-        f"and {d2_info['label']}:\n{_bullet(overlap)}",
-        f"Symptoms unique to {d1_info['label']}:\n{_bullet(only_d1)}" if only_d1 else "",
-        f"Symptoms unique to {d2_info['label']}:\n{_bullet(only_d2)}" if only_d2 else "",
-    ]
-    return _respond([m for m in messages if m], es=es)
-
-
-# ── 5. GetRiskFactors ─────────────────────────────────────────────────────
-
-def handle_get_risk_factors(params: dict, es: bool = False) -> dict:
-    """
-    Intent: GetRiskFactors.json
-    Returns general (non-lifestyle) risk factors for specified diseases.
-    """
-    diseases = _extract_diseases_from_params(params)
-
-    if not diseases:
-        return _respond([
-            "Which disease are you asking about? "
-            "I can provide risk factors for: Alzheimer's, ALS/Huntington's, "
-            "Dementia/MCI, Parkinson's, and Stroke."
-        ], es=es)
-
-    messages = []
-    for dk in diseases:
-        info = ONTOLOGY[dk]
-        messages.append(
-            f"Risk factors for {info['label']}:\n{_bullet(info['risk_factors'])}"
-        )
-    return _cx_response(messages)
-
-
-# ── 6. GetLifestyleRiskFactors ────────────────────────────────────────────
-
-def handle_get_lifestyle_risk_factors(params: dict, es: bool = False) -> dict:
-    """
-    Intent: GetLifestyleRiskFactors.json
-    Returns lifestyle-specific risk factors.
-    """
-    diseases = _extract_diseases_from_params(params)
-
-    if not diseases:
-        return _respond([
-            "Which disease are you asking about for lifestyle risk factors? "
-            "For example: 'What lifestyle factors affect Alzheimer's?'"
-        ], es=es)
-
-    messages = []
-    for dk in diseases:
-        info = ONTOLOGY[dk]
-        messages.append(
-            f"Lifestyle risk factors for {info['label']}:\n"
-            f"{_bullet(info['lifestyle_risk_factors'])}"
-        )
-    return _cx_response(messages)
-
-
-# ── Fallback ──────────────────────────────────────────────────────────────
-
-def handle_unknown_intent(intent_display_name: str, es: bool = False) -> dict:
-    return _respond([
-        f"I'm sorry, I don't know how to handle the intent '{intent_display_name}' yet. "
-        "You can ask me about:\n"
-        "• Symptoms of a neurological disease\n"
-        "• Which disease might match your symptoms\n"
-        "• How to differentiate between two diseases\n"
-        "• Overlapping symptoms between diseases\n"
-        "• Risk factors or lifestyle risk factors for a disease"
-    ], es=es)
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# INTENT ROUTER
-# ═════════════════════════════════════════════════════════════════════════════
-
-# Maps every Dialogflow intent display name (or tag) to its handler.
-# Keys must match exactly what you set in Dialogflow CX intent display names.
-
-INTENT_ROUTER: dict = {
-    # ── Symptoms ──────────────────────────────────────────────
-    "ReportSymptoms":           handle_get_primary_symptoms,
-    "GetPrimarySymptoms":       handle_get_primary_symptoms,
-
-    # ── Triage ────────────────────────────────────────────────
-    "GetTriageResult":          handle_get_triage_result,
-    "GetDiseaseFromSymptom":    handle_get_triage_result,
-
-    # ── Differentiation ───────────────────────────────────────
-    "DifferentiateByDisease":   handle_differentiate_by_disease,
-
-    # ── Overlapping ───────────────────────────────────────────
-    "GetOverlappingSymptoms":   handle_get_overlapping_symptoms,
-
-    # ── Risk factors ──────────────────────────────────────────
-    "GetRiskFactors":           handle_get_risk_factors,
-    "GetLifestyleRiskFactors":  handle_get_lifestyle_risk_factors,
-}
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# FLASK ROUTES
-# ═════════════════════════════════════════════════════════════════════════════
-
-@app.route("/", methods=["GET"])
-def health_check():
-    """render.com health-check endpoint."""
-    return jsonify({"status": "NARQ webhook is live 🧠"}), 200
-
-
-def _is_dialogflow_es(body: dict) -> bool:
-    """Return True if the payload is Dialogflow ES (v2) format."""
+def _is_es(body: dict) -> bool:
     return "queryResult" in body
 
 
-def _parse_es_payload(body: dict) -> tuple[str, dict]:
-    """
-    Parse a Dialogflow ES (v2) WebhookRequest.
-
-    ES payload structure:
-    {
-      "queryResult": {
-        "intent": { "displayName": "GetOverlappingSymptoms" },
-        "parameters": {
-          "disease":  "Alzheimer's Disease",   # string or list
-          "disease1": ["Parkinson's Disease"],  # string or list
-          "symptom":  ["symptoms"]
-        }
-      }
-    }
-    Returns (intent_name, flat_params).
-    """
-    query_result = body.get("queryResult", {})
-    intent_name: str = query_result.get("intent", {}).get("displayName", "").strip()
-
-    raw_params: dict = query_result.get("parameters", {})
+def _parse_es(body: dict) -> tuple[str, dict]:
+    qr = body.get("queryResult", {})
+    intent_name = qr.get("intent", {}).get("displayName", "").strip()
+    raw = qr.get("parameters", {})
     flat: dict = {}
-    for k, v in raw_params.items():
+    for k, v in raw.items():
         if isinstance(v, list):
-            # Unwrap single-item lists to plain strings (e.g. ["Parkinson's Disease"] → "Parkinson's Disease")
             flat[k] = v[0] if len(v) == 1 else (v if v else "")
         else:
             flat[k] = v
     return intent_name, flat
 
 
-def _parse_cx_payload(body: dict) -> tuple[str, dict]:
-    """
-    Parse a Dialogflow CX WebhookRequest.
+def _parse_cx(body: dict) -> tuple[str, dict]:
+    tag = body.get("fulfillmentInfo", {}).get("tag", "").strip()
+    display = body.get("intentInfo", {}).get("displayName", "").strip()
+    intent_name = tag or display
+    session = body.get("sessionInfo", {}).get("parameters", {})
+    raw = body.get("intentInfo", {}).get("parameters", {})
+    flat: dict = {}
+    for k, v in raw.items():
+        flat[k] = v.get("resolvedValue", v.get("originalValue", "")) if isinstance(v, dict) else v
+    return intent_name, {**flat, **session}
 
-    CX payload structure:
-    {
-      "fulfillmentInfo": { "tag": "GetPrimarySymptoms" },
-      "intentInfo": {
-        "displayName": "GetPrimarySymptoms",
-        "parameters": { "disease": { "resolvedValue": "Parkinson's" } }
-      },
-      "sessionInfo": { "parameters": { "disease": "Parkinson's" } }
-    }
-    Returns (intent_name, flat_params).
-    """
-    fulfillment_tag: str = body.get("fulfillmentInfo", {}).get("tag", "").strip()
-    intent_display_name: str = body.get("intentInfo", {}).get("displayName", "").strip()
-    intent_name = fulfillment_tag or intent_display_name
 
-    session_params: dict = body.get("sessionInfo", {}).get("parameters", {})
-    intent_params_raw: dict = body.get("intentInfo", {}).get("parameters", {})
+# =============================================================================
+# INTENT HANDLERS
+# =============================================================================
 
-    intent_params_flat: dict = {}
-    for k, v in intent_params_raw.items():
-        if isinstance(v, dict):
-            intent_params_flat[k] = v.get("resolvedValue", v.get("originalValue", ""))
-        else:
-            intent_params_flat[k] = v
+# ── CQ1 — Symptoms of a disease ──────────────────────────────────────────────
 
-    params: dict = {**intent_params_flat, **session_params}
-    return intent_name, params
+def handle_get_primary_symptoms(params: dict, es: bool = False) -> dict:
+    diseases = _extract_diseases(params)
+
+    if not diseases:
+        disease_list = _bullet([ONTOLOGY[dk]["label"] for dk in ONTOLOGY])
+        return _respond([
+            "I can report symptoms for the following diseases:",
+            disease_list,
+            "Which disease would you like to know about?",
+        ], es)
+
+    messages = []
+    for dk in diseases:
+        d = ONTOLOGY[dk]
+        primary     = _bullet([_sym_label(s) for s in d["primary_symptoms"]])
+        secondary   = _bullet([_sym_label(s) for s in d["secondary_symptoms"]])
+        overlapping = _bullet([_sym_label(s) for s in d["overlapping_symptoms"]])
+        messages.append(
+            f"━━ {d['label']} ━━\n"
+            f"Primary (hallmark) symptoms:\n{primary}\n\n"
+            f"Secondary symptoms:\n{secondary}\n\n"
+            f"Overlapping symptoms (shared with other diseases):\n{overlapping}"
+        )
+    return _respond(messages, es)
+
+
+# ── CQ2 — Triage: what disease matches my symptoms? ──────────────────────────
+
+def handle_get_triage_result(params: dict, es: bool = False) -> dict:
+    user_keywords = _extract_symptom_keywords(params)
+
+    if not user_keywords:
+        return _respond([
+            "Please describe your symptoms so I can help with triage.\n"
+            "For example: 'I have tremor, stiffness, and trouble walking.'"
+        ], es)
+
+    matched_sym_ids: set[str] = set()
+    for kw in user_keywords:
+        for keyword, sym_id in _SYMPTOM_KEYWORDS.items():
+            if keyword in kw or kw in keyword:
+                matched_sym_ids.add(sym_id)
+
+    if not matched_sym_ids:
+        return _respond([
+            f"I could not match '{', '.join(user_keywords)}' to any known symptoms.\n"
+            "Try describing symptoms such as: tremor, memory loss, weakness, slurred speech.",
+            "This tool provides informational support only — not a medical diagnosis. "
+            "Please consult a qualified neurologist."
+        ], es)
+
+    # Score: primary=3, secondary=2, overlapping=1
+    scores: dict[str, int] = {}
+    matched_per_disease: dict[str, list[str]] = {}
+    for dk, d in ONTOLOGY.items():
+        score = 0
+        matched: list[str] = []
+        for tier, w in [("primary_symptoms", 3), ("secondary_symptoms", 2), ("overlapping_symptoms", 1)]:
+            for sym_id in d[tier]:
+                if sym_id in matched_sym_ids:
+                    score += w
+                    tier_label = tier.replace("_symptoms", "")
+                    matched.append(f"{_sym_label(sym_id)} [{tier_label}]")
+        scores[dk] = score
+        matched_per_disease[dk] = matched
+
+    ranked = sorted(
+        [(dk, sc) for dk, sc in scores.items() if sc > 0],
+        key=lambda x: x[1], reverse=True
+    )
+
+    if not ranked:
+        return _respond([
+            "The ontology could not find a symptom match for what you described.\n"
+            "Please consult a medical professional for a proper evaluation.",
+            "This tool provides informational support only — not a medical diagnosis."
+        ], es)
+
+    messages = [
+        f"Based on the symptoms you described ({', '.join(user_keywords)}), "
+        "here are possible conditions from the NTO ontology:"
+    ]
+    icons = ["[1st]", "[2nd]", "[3rd]"]
+    for i, (dk, score) in enumerate(ranked[:3]):
+        d = ONTOLOGY[dk]
+        icon = icons[i] if i < len(icons) else "•"
+        messages.append(
+            f"{icon} {d['label']} — {score} ontology match point(s)\n"
+            f"   Matched: {', '.join(matched_per_disease[dk])}"
+        )
+    messages.append(
+        "This is informational triage support only and not a medical diagnosis. "
+        "Please consult a qualified neurologist."
+    )
+    return _respond(messages, es)
+
+
+# ── CQ3 — Differentiate between diseases ─────────────────────────────────────
+
+def handle_differentiate_by_disease(params: dict, es: bool = False) -> dict:
+    diseases = _extract_diseases(params)
+    if len(diseases) < 2:
+        diseases = list(ONTOLOGY.keys())
+
+    messages = [
+        "How to differentiate between "
+        + ", ".join(ONTOLOGY[dk]["label"] for dk in diseases) + ":"
+    ]
+    for dk in diseases:
+        d = ONTOLOGY[dk]
+        messages.append(
+            f"━━ {d['label']} ━━\n{_bullet(d['differentiators'])}"
+        )
+    messages.append(
+        "Key principle: focus on onset pattern, primary symptom domain "
+        "(motor vs cognitive vs both), and which symptoms appeared first."
+    )
+    return _respond(messages, es)
+
+
+# ── CQ4 — Overlapping symptoms between two diseases ──────────────────────────
+
+def handle_get_overlapping_symptoms(params: dict, es: bool = False) -> dict:
+    diseases = _extract_diseases(params)
+
+    if len(diseases) < 2:
+        return _respond([
+            "Please specify two diseases to compare.\n"
+            "For example: 'What symptoms do Alzheimer's and Parkinson's share?'"
+        ], es)
+
+    dk1, dk2 = diseases[0], diseases[1]
+    d1, d2 = ONTOLOGY[dk1], ONTOLOGY[dk2]
+
+    set1 = set(_all_symptom_ids(dk1))
+    set2 = set(_all_symptom_ids(dk2))
+    shared_ids  = sorted(set1 & set2)
+    only1_ids   = sorted(set1 - set2)
+    only2_ids   = sorted(set2 - set1)
+
+    explicit_overlap = sorted(
+        set(d1["overlapping_symptoms"]) & set(d2["overlapping_symptoms"])
+    )
+
+    if not shared_ids:
+        return _respond([
+            f"The ontology contains no shared symptoms between "
+            f"{d1['label']} and {d2['label']}."
+        ], es)
+
+    messages = [f"Symptom comparison: {d1['label']} vs {d2['label']}"]
+
+    messages.append(
+        f"Shared symptoms ({len(shared_ids)}):\n"
+        + _bullet([_sym_label(s) for s in shared_ids])
+    )
+    if explicit_overlap:
+        messages.append(
+            "Explicitly marked as overlapping in the ontology "
+            "(hasOverlappingSymptom):\n"
+            + _bullet([_sym_label(s) for s in explicit_overlap])
+        )
+    if only1_ids:
+        messages.append(
+            f"Symptoms unique to {d1['label']}:\n"
+            + _bullet([_sym_label(s) for s in only1_ids])
+        )
+    if only2_ids:
+        messages.append(
+            f"Symptoms unique to {d2['label']}:\n"
+            + _bullet([_sym_label(s) for s in only2_ids])
+        )
+    return _respond(messages, es)
+
+
+# ── CQ5 — Risk factors for a disease ─────────────────────────────────────────
+
+def handle_get_risk_factors(params: dict, es: bool = False) -> dict:
+    diseases = _extract_diseases(params)
+
+    if not diseases:
+        return _respond([
+            "Which disease would you like risk factors for?\n"
+            "Available: Alzheimer's Disease, ALS, Parkinson's Disease."
+        ], es)
+
+    messages = []
+    for dk in diseases:
+        d = ONTOLOGY[dk]
+        risk_by_cat: dict[str, list[str]] = {}
+        for fid in d["risk_factors"]:
+            cat = FACTORS.get(fid, {}).get("category", "Other")
+            risk_by_cat.setdefault(cat, []).append(_fac_label(fid))
+
+        lines = [f"Risk factors for {d['label']}:"]
+        for cat in ["Genetic", "Lifestyle", "Epidemiological", "Other"]:
+            if cat in risk_by_cat:
+                lines.append(f"\n[{cat}]\n{_bullet(risk_by_cat[cat])}")
+        if d["protective_factors"]:
+            lines.append(
+                "\nProtective factors:\n"
+                + _bullet([_fac_label(f) for f in d["protective_factors"]])
+            )
+        if d["contradictory_factors"]:
+            lines.append(
+                "\nContradictory evidence (mixed findings):\n"
+                + _bullet([_fac_label(f) for f in d["contradictory_factors"]])
+            )
+        messages.append("\n".join(lines))
+
+    return _respond(messages, es)
+
+
+# ── CQ6 — Lifestyle factors affecting a disease ──────────────────────────────
+
+def handle_get_lifestyle_risk_factors(params: dict, es: bool = False) -> dict:
+    diseases = _extract_diseases(params)
+
+    if not diseases:
+        return _respond([
+            "Which disease would you like lifestyle factor information for?\n"
+            "For example: 'What lifestyle factors affect Parkinson's?'"
+        ], es)
+
+    messages = []
+    for dk in diseases:
+        d = ONTOLOGY[dk]
+        lifestyle_risk = [
+            _fac_label(fid) for fid in d["risk_factors"]
+            if FACTORS.get(fid, {}).get("category") == "Lifestyle"
+        ]
+        lifestyle_protect = [
+            _fac_label(fid) for fid in d["protective_factors"]
+            if FACTORS.get(fid, {}).get("category") == "Lifestyle"
+        ]
+        lifestyle_contra = [
+            _fac_label(fid) for fid in d["contradictory_factors"]
+            if FACTORS.get(fid, {}).get("category") == "Lifestyle"
+        ]
+
+        lines = [f"Lifestyle factors for {d['label']}:"]
+        if lifestyle_risk:
+            lines.append(f"\nRisk factors (lifestyle):\n{_bullet(lifestyle_risk)}")
+        if lifestyle_protect:
+            lines.append(f"\nProtective lifestyle factors:\n{_bullet(lifestyle_protect)}")
+        if lifestyle_contra:
+            lines.append(f"\nContradictory evidence:\n{_bullet(lifestyle_contra)}")
+        if not (lifestyle_risk or lifestyle_protect or lifestyle_contra):
+            lines.append("\nNo lifestyle-specific factors recorded in the ontology.")
+        messages.append("\n".join(lines))
+
+    return _respond(messages, es)
+
+
+# ── Fallback ──────────────────────────────────────────────────────────────────
+
+def handle_unknown_intent(intent_name: str, es: bool = False) -> dict:
+    return _respond([
+        f"I don't know how to handle the intent '{intent_name}' yet.\n"
+        "You can ask me about:\n"
+        "• Symptoms of a disease (Alzheimer's, ALS, Parkinson's)\n"
+        "• Which disease might match your symptoms\n"
+        "• How to differentiate between the three diseases\n"
+        "• Overlapping symptoms between two diseases\n"
+        "• Risk factors for a disease\n"
+        "• Lifestyle factors affecting a disease"
+    ], es)
+
+
+# =============================================================================
+# INTENT ROUTER
+# =============================================================================
+
+INTENT_ROUTER: dict = {
+    "ReportSymptoms":           handle_get_primary_symptoms,
+    "GetPrimarySymptoms":       handle_get_primary_symptoms,
+    "GetTriageResult":          handle_get_triage_result,
+    "GetDiseaseFromSymptom":    handle_get_triage_result,
+    "DifferentiateByDisease":   handle_differentiate_by_disease,
+    "GetOverlappingSymptoms":   handle_get_overlapping_symptoms,
+    "GetRiskFactors":           handle_get_risk_factors,
+    "GetLifestyleRiskFactors":  handle_get_lifestyle_risk_factors,
+}
+
+
+# =============================================================================
+# FLASK ROUTES
+# =============================================================================
+
+@app.route("/", methods=["GET"])
+def health_check():
+    return jsonify({"status": "NARQ webhook is live", "ontology": "NTO v1.0.0"}), 200
 
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    """
-    Main webhook endpoint — supports both Dialogflow ES (v2) and CX formats.
-
-    Dialogflow ES POST body (WebhookRequest v2) looks like:
-    {
-      "queryResult": {
-        "queryText": "...",
-        "intent": { "displayName": "GetOverlappingSymptoms" },
-        "parameters": { "disease": "Alzheimer's Disease", "disease1": ["Parkinson's Disease"] }
-      }
-    }
-
-    Dialogflow CX POST body (WebhookRequest) looks like:
-    {
-      "fulfillmentInfo": { "tag": "GetPrimarySymptoms" },
-      "intentInfo": { "displayName": "GetPrimarySymptoms", "parameters": { ... } },
-      "sessionInfo": { "parameters": { "disease": "Parkinson's" } }
-    }
-    """
     try:
         body: dict = request.get_json(force=True) or {}
-        logger.info("Webhook received — intent payload keys: %s", list(body.keys()))
+        logger.info("Webhook received — keys: %s", list(body.keys()))
 
-        # ── Auto-detect payload format and parse ─────────────────────────────
-        es = _is_dialogflow_es(body)
+        es = _is_es(body)
         if es:
-            intent_name, params = _parse_es_payload(body)
-            logger.info("Format: Dialogflow ES  |  Intent: '%s'", intent_name)
+            intent_name, params = _parse_es(body)
         else:
-            intent_name, params = _parse_cx_payload(body)
-            logger.info("Format: Dialogflow CX  |  Intent: '%s'", intent_name)
+            intent_name, params = _parse_cx(body)
 
-        logger.info("Params: %s", params)
+        logger.info("Format: %s  |  Intent: '%s'  |  Params: %s",
+                    "ES" if es else "CX", intent_name, params)
 
-        # ── Dispatch ─────────────────────────────────────────────────────────
         handler = INTENT_ROUTER.get(intent_name)
         if handler:
             response = handler(params, es=es)
@@ -731,20 +773,18 @@ def webhook():
 
         return jsonify(response), 200
 
-    except Exception as exc:  # pylint: disable=broad-except
-        logger.exception("Unhandled exception in webhook: %s", exc)
-        error_response = _es_response([
+    except Exception as exc:
+        logger.exception("Unhandled exception: %s", exc)
+        return jsonify(_es_response([
             "I encountered an internal error. Please try again shortly."
-        ])
-        return jsonify(error_response), 500
+        ])), 500
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 # ENTRY POINT
-# ═════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 
 if __name__ == "__main__":
-    # render.com sets PORT automatically; default to 8080 locally.
     port = int(os.environ.get("PORT", 8080))
     logger.info("Starting NARQ webhook on port %d", port)
     app.run(host="0.0.0.0", port=port, debug=False)
