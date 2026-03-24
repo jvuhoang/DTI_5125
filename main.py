@@ -256,7 +256,17 @@ ALL_DISEASES = list(ONTOLOGY.keys())
 
 def _normalise_disease(raw: str) -> str | None:
     """Return canonical disease key from free-text, or None if not found."""
-    return _ALIAS.get(raw.lower().strip())
+    cleaned = raw.lower().strip()
+    # Try exact match first
+    if cleaned in _ALIAS:
+        return _ALIAS[cleaned]
+    # Strip common suffixes Dialogflow appends (e.g. "Parkinson's Disease" -> "parkinson's")
+    for suffix in (" disease", " disorder", " syndrome", "'s disease", "s disease"):
+        if cleaned.endswith(suffix):
+            trimmed = cleaned[: -len(suffix)].strip()
+            if trimmed in _ALIAS:
+                return _ALIAS[trimmed]
+    return None
 
 
 def _extract_diseases_from_params(params: dict) -> list[str]:
