@@ -289,10 +289,24 @@ def _bullet(items: list[str]) -> str:
     return "\n".join(f"• {item.capitalize()}" for item in items)
 
 
+def _es_response(messages: list[str]) -> dict:
+    """
+    Build a Dialogflow ES (v2) webhook response.
+    ES expects: { "fulfillmentText": "...", "fulfillmentMessages": [...] }
+    """
+    combined = "\n\n".join(messages)
+    return {
+        "fulfillmentText": combined,
+        "fulfillmentMessages": [
+            {"text": {"text": [msg]}} for msg in messages
+        ]
+    }
+
+
 def _cx_response(messages: list[str]) -> dict:
     """
-    Build a minimal Dialogflow CX webhook response.
-    Wraps each string in a text response message.
+    Build a Dialogflow CX webhook response.
+    CX expects: { "fulfillment_response": { "messages": [...] } }
     """
     return {
         "fulfillment_response": {
@@ -303,13 +317,18 @@ def _cx_response(messages: list[str]) -> dict:
     }
 
 
+def _respond(messages: list[str], es: bool = False) -> dict:
+    """Auto-select the correct response format."""
+    return _es_response(messages) if es else _cx_response(messages)
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # INTENT HANDLERS
 # ═════════════════════════════════════════════════════════════════════════════
 
 # ── 1. ReportSymptoms / GetPrimarySymptoms ────────────────────────────────
 
-def handle_get_primary_symptoms(params: dict) -> dict:
+def handle_get_primary_symptoms(params: dict, es: bool = False) -> dict:
     """
     Intents: ReportSymptoms.json, GetPrimarySymptoms.json
     Returns the primary symptom list for one or more diseases.
@@ -322,12 +341,12 @@ def handle_get_primary_symptoms(params: dict) -> dict:
         disease_list = "\n".join(
             f"• {info['label']}" for info in ONTOLOGY.values()
         )
-        return _cx_response([
+        return _respond([
             "I can report symptoms for the following neurological diseases:",
             disease_list,
             "Which disease would you like to know about? "
             "For example: 'What are the symptoms of Parkinson's Disease?'",
-        ])
+        ], es=es)
 
     messages = []
     for dk in diseases:
@@ -340,7 +359,7 @@ def handle_get_primary_symptoms(params: dict) -> dict:
 
 # ── 2. GetTriageResult / GetDiseaseFromSymptom ────────────────────────────
 
-def handle_get_triage_result(params: dict) -> dict:
+def handle_get_triage_result(params: dict, es: bool = False) -> dict:
     """
     Intents: GetTriageResult.json, GetDiseaseFromSymptom.json
     Given a list of user-reported symptoms, scores each disease and returns
@@ -349,10 +368,10 @@ def handle_get_triage_result(params: dict) -> dict:
     user_symptoms = _extract_symptoms_from_params(params)
 
     if not user_symptoms:
-        return _cx_response([
+        return _respond([
             "Please tell me your symptoms so I can help triage. "
             "For example: 'I have tremor, stiffness, and slow movement.'"
-        ])
+        ], es=es)
 
     # Score each disease: count matching keywords
     scores: dict[str, int] = {}
@@ -378,12 +397,12 @@ def handle_get_triage_result(params: dict) -> dict:
     )
 
     if not ranked:
-        return _cx_response([
+        return _respond([
             "I could not match your symptoms to any disease in my knowledge base. "
             "Please consult a medical professional for a proper diagnosis.",
             "Try describing symptoms such as: tremor, memory loss, weakness, "
             "sudden speech difficulty, etc.",
-        ])
+        ], es=es)
 
     messages = [
         f"Based on the symptoms you reported ({', '.join(user_symptoms)}), "
@@ -408,7 +427,7 @@ def handle_get_triage_result(params: dict) -> dict:
 
 # ── 3. DifferentiateByDisease ─────────────────────────────────────────────
 
-def handle_differentiate_by_disease(params: dict) -> dict:
+def handle_differentiate_by_disease(params: dict, es: bool = False) -> dict:
     """
     Intent: DifferentiateByDisease.json
     Explains how to differentiate between two or more specified diseases.
@@ -445,7 +464,7 @@ def handle_differentiate_by_disease(params: dict) -> dict:
 
 # ── 4. GetOverlappingSymptoms ─────────────────────────────────────────────
 
-def handle_get_overlapping_symptoms(params: dict) -> dict:
+def handle_get_overlapping_symptoms(params: dict, es: bool = False) -> dict:
     """
     Intent: GetOverlappingSymptoms.json
     Returns the symptom intersection between exactly two diseases.
@@ -453,10 +472,10 @@ def handle_get_overlapping_symptoms(params: dict) -> dict:
     diseases = _extract_diseases_from_params(params)
 
     if len(diseases) < 2:
-        return _cx_response([
+        return _respond([
             "Please specify two diseases to compare. "
             "For example: 'What symptoms overlap between Alzheimer's and Dementia?'"
-        ])
+        ], es=es)
 
     d1_key, d2_key = diseases[0], diseases[1]
     d1_info, d2_info = ONTOLOGY[d1_key], ONTOLOGY[d2_key]
@@ -474,7 +493,7 @@ def handle_get_overlapping_symptoms(params: dict) -> dict:
             f"{d1_info['label']} and {d2_info['label']} "
             f"in the current ontology. Their symptom profiles are largely distinct."
         )
-        return _cx_response([msg])
+        return _respond([msg], es=es)
 
     messages = [
         f"Overlapping symptoms between {d1_info['label']} "
@@ -482,12 +501,12 @@ def handle_get_overlapping_symptoms(params: dict) -> dict:
         f"Symptoms unique to {d1_info['label']}:\n{_bullet(only_d1)}" if only_d1 else "",
         f"Symptoms unique to {d2_info['label']}:\n{_bullet(only_d2)}" if only_d2 else "",
     ]
-    return _cx_response([m for m in messages if m])
+    return _respond([m for m in messages if m], es=es)
 
 
 # ── 5. GetRiskFactors ─────────────────────────────────────────────────────
 
-def handle_get_risk_factors(params: dict) -> dict:
+def handle_get_risk_factors(params: dict, es: bool = False) -> dict:
     """
     Intent: GetRiskFactors.json
     Returns general (non-lifestyle) risk factors for specified diseases.
@@ -495,11 +514,11 @@ def handle_get_risk_factors(params: dict) -> dict:
     diseases = _extract_diseases_from_params(params)
 
     if not diseases:
-        return _cx_response([
+        return _respond([
             "Which disease are you asking about? "
             "I can provide risk factors for: Alzheimer's, ALS/Huntington's, "
             "Dementia/MCI, Parkinson's, and Stroke."
-        ])
+        ], es=es)
 
     messages = []
     for dk in diseases:
@@ -512,7 +531,7 @@ def handle_get_risk_factors(params: dict) -> dict:
 
 # ── 6. GetLifestyleRiskFactors ────────────────────────────────────────────
 
-def handle_get_lifestyle_risk_factors(params: dict) -> dict:
+def handle_get_lifestyle_risk_factors(params: dict, es: bool = False) -> dict:
     """
     Intent: GetLifestyleRiskFactors.json
     Returns lifestyle-specific risk factors.
@@ -520,10 +539,10 @@ def handle_get_lifestyle_risk_factors(params: dict) -> dict:
     diseases = _extract_diseases_from_params(params)
 
     if not diseases:
-        return _cx_response([
+        return _respond([
             "Which disease are you asking about for lifestyle risk factors? "
             "For example: 'What lifestyle factors affect Alzheimer's?'"
-        ])
+        ], es=es)
 
     messages = []
     for dk in diseases:
@@ -537,8 +556,8 @@ def handle_get_lifestyle_risk_factors(params: dict) -> dict:
 
 # ── Fallback ──────────────────────────────────────────────────────────────
 
-def handle_unknown_intent(intent_display_name: str) -> dict:
-    return _cx_response([
+def handle_unknown_intent(intent_display_name: str, es: bool = False) -> dict:
+    return _respond([
         f"I'm sorry, I don't know how to handle the intent '{intent_display_name}' yet. "
         "You can ask me about:\n"
         "• Symptoms of a neurological disease\n"
@@ -546,7 +565,7 @@ def handle_unknown_intent(intent_display_name: str) -> dict:
         "• How to differentiate between two diseases\n"
         "• Overlapping symptoms between diseases\n"
         "• Risk factors or lifestyle risk factors for a disease"
-    ])
+    ], es=es)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -616,8 +635,8 @@ def _parse_es_payload(body: dict) -> tuple[str, dict]:
     flat: dict = {}
     for k, v in raw_params.items():
         if isinstance(v, list):
-            # Keep lists as-is; _extract_diseases_from_params handles them
-            flat[k] = v if v else ""
+            # Unwrap single-item lists to plain strings (e.g. ["Parkinson's Disease"] → "Parkinson's Disease")
+            flat[k] = v[0] if len(v) == 1 else (v if v else "")
         else:
             flat[k] = v
     return intent_name, flat
@@ -682,7 +701,8 @@ def webhook():
         logger.info("Webhook received — intent payload keys: %s", list(body.keys()))
 
         # ── Auto-detect payload format and parse ─────────────────────────────
-        if _is_dialogflow_es(body):
+        es = _is_dialogflow_es(body)
+        if es:
             intent_name, params = _parse_es_payload(body)
             logger.info("Format: Dialogflow ES  |  Intent: '%s'", intent_name)
         else:
@@ -694,16 +714,16 @@ def webhook():
         # ── Dispatch ─────────────────────────────────────────────────────────
         handler = INTENT_ROUTER.get(intent_name)
         if handler:
-            response = handler(params)
+            response = handler(params, es=es)
         else:
             logger.warning("No handler for intent: '%s'", intent_name)
-            response = handle_unknown_intent(intent_name)
+            response = handle_unknown_intent(intent_name, es=es)
 
         return jsonify(response), 200
 
     except Exception as exc:  # pylint: disable=broad-except
         logger.exception("Unhandled exception in webhook: %s", exc)
-        error_response = _cx_response([
+        error_response = _es_response([
             "I encountered an internal error. Please try again shortly."
         ])
         return jsonify(error_response), 500
