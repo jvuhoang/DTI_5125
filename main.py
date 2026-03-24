@@ -85,8 +85,14 @@ def get_disease_from_symptom(symptom_label):
     return jsonify({"fulfillmentText": f"I don't have information on which diseases are linked to {symptom_label}."})
 
 def get_overlapping_symptoms(d1, d2):
-    if not d1 or not d2: return jsonify({"fulfillmentText": "Please provide two diseases to compare."})
-    
+# If d2 is empty, check if d1 was sent as a list by Dialogflow 
+    # (Sometimes Dialogflow sends ['ALS', 'Parkinsons'] as one parameter)
+    if isinstance(d1, list) and len(d1) >= 2:
+        d2 = d1[1]
+        d1 = d1[0]
+
+    if not d1 or not d2: 
+        return jsonify({"fulfillmentText": "I recognized one disease, but I need two to find overlaps. (e.g., 'What are the shared symptoms between ALS and Parkinson's?')" })  
     query = f"""
     SELECT ?sLabel WHERE {{
         ?dis1 rdfs:label ?dl1 . FILTER(LCASE(STR(?dl1)) = LCASE("{d1}"))
@@ -102,9 +108,13 @@ def get_overlapping_symptoms(d1, d2):
     return jsonify({"fulfillmentText": f"I couldn't find any overlapping symptoms between {d1} and {d2} in the ontology."})
 
 def get_risk_factors(disease_label):
+    # If the user says "ALS", we want it to match "Amyotrophic Lateral Sclerosis"
+    # We use CONTAINS and LCASE to make the search flexible
     query = f"""
     SELECT ?fLabel WHERE {{
-        ?d rdfs:label ?dLabel . FILTER(LCASE(STR(?dLabel)) = LCASE("{disease_label}"))
+        ?d rdfs:label ?dLabel . 
+        FILTER(CONTAINS(LCASE(STR(?dLabel)), LCASE("{disease_label}")) || 
+               CONTAINS(LCASE("{disease_label}"), LCASE(STR(?dLabel))))
         ?d <http://www.semanticweb.org/NeuroTriageOntology#hasRiskFactor> ?f .
         ?f rdfs:label ?fLabel .
     }}
@@ -112,7 +122,7 @@ def get_risk_factors(disease_label):
     results = [str(row.fLabel) for row in g.query(query)]
     if results:
         return jsonify({"fulfillmentText": f"Identified risk factors for {disease_label}: {', '.join(results)}."})
-    return jsonify({"fulfillmentText": f"No risk factors found for {disease_label}."})
+    return jsonify({"fulfillmentText": f"I couldn't find risk factors for {disease_label} in the ontology."})
 
 def differentiate_diseases(d1, d2):
     # This combines logic to show what makes them different
