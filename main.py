@@ -587,65 +587,109 @@ def health_check():
     return jsonify({"status": "NARQ webhook is live 🧠"}), 200
 
 
+def _is_dialogflow_es(body: dict) -> bool:
+    """Return True if the payload is Dialogflow ES (v2) format."""
+    return "queryResult" in body
+
+
+def _parse_es_payload(body: dict) -> tuple[str, dict]:
+    """
+    Parse a Dialogflow ES (v2) WebhookRequest.
+
+    ES payload structure:
+    {
+      "queryResult": {
+        "intent": { "displayName": "GetOverlappingSymptoms" },
+        "parameters": {
+          "disease":  "Alzheimer's Disease",   # string or list
+          "disease1": ["Parkinson's Disease"],  # string or list
+          "symptom":  ["symptoms"]
+        }
+      }
+    }
+    Returns (intent_name, flat_params).
+    """
+    query_result = body.get("queryResult", {})
+    intent_name: str = query_result.get("intent", {}).get("displayName", "").strip()
+
+    raw_params: dict = query_result.get("parameters", {})
+    flat: dict = {}
+    for k, v in raw_params.items():
+        if isinstance(v, list):
+            # Keep lists as-is; _extract_diseases_from_params handles them
+            flat[k] = v if v else ""
+        else:
+            flat[k] = v
+    return intent_name, flat
+
+
+def _parse_cx_payload(body: dict) -> tuple[str, dict]:
+    """
+    Parse a Dialogflow CX WebhookRequest.
+
+    CX payload structure:
+    {
+      "fulfillmentInfo": { "tag": "GetPrimarySymptoms" },
+      "intentInfo": {
+        "displayName": "GetPrimarySymptoms",
+        "parameters": { "disease": { "resolvedValue": "Parkinson's" } }
+      },
+      "sessionInfo": { "parameters": { "disease": "Parkinson's" } }
+    }
+    Returns (intent_name, flat_params).
+    """
+    fulfillment_tag: str = body.get("fulfillmentInfo", {}).get("tag", "").strip()
+    intent_display_name: str = body.get("intentInfo", {}).get("displayName", "").strip()
+    intent_name = fulfillment_tag or intent_display_name
+
+    session_params: dict = body.get("sessionInfo", {}).get("parameters", {})
+    intent_params_raw: dict = body.get("intentInfo", {}).get("parameters", {})
+
+    intent_params_flat: dict = {}
+    for k, v in intent_params_raw.items():
+        if isinstance(v, dict):
+            intent_params_flat[k] = v.get("resolvedValue", v.get("originalValue", ""))
+        else:
+            intent_params_flat[k] = v
+
+    params: dict = {**intent_params_flat, **session_params}
+    return intent_name, params
+
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     """
-    Main Dialogflow CX webhook endpoint.
+    Main webhook endpoint — supports both Dialogflow ES (v2) and CX formats.
+
+    Dialogflow ES POST body (WebhookRequest v2) looks like:
+    {
+      "queryResult": {
+        "queryText": "...",
+        "intent": { "displayName": "GetOverlappingSymptoms" },
+        "parameters": { "disease": "Alzheimer's Disease", "disease1": ["Parkinson's Disease"] }
+      }
+    }
 
     Dialogflow CX POST body (WebhookRequest) looks like:
     {
-      "detectIntentResponseId": "...",
-      "intentInfo": {
-        "lastMatchedIntent": "projects/.../intents/<uuid>",
-        "displayName": "GetPrimarySymptoms",
-        "parameters": {
-          "disease": { "originalValue": "Parkinson's", "resolvedValue": "Parkinson's" }
-        },
-        "confidence": 0.92
-      },
-      "pageInfo": { ... },
-      "sessionInfo": {
-        "parameters": { "disease": "Parkinson's" }
-      },
       "fulfillmentInfo": { "tag": "GetPrimarySymptoms" },
-      "text": "What are the symptoms of Parkinson's disease?"
+      "intentInfo": { "displayName": "GetPrimarySymptoms", "parameters": { ... } },
+      "sessionInfo": { "parameters": { "disease": "Parkinson's" } }
     }
     """
     try:
         body: dict = request.get_json(force=True) or {}
-        logger.info("Webhook payload: %s", json.dumps(body, indent=2))
+        logger.info("Webhook received — intent payload keys: %s", list(body.keys()))
 
-        # ── Resolve intent name ──────────────────────────────────────────────
-        # Dialogflow CX can deliver the intent name via intentInfo.displayName
-        # OR via fulfillmentInfo.tag (set manually in the intent editor).
-        # We prefer the tag (more explicit) then fall back to displayName.
-        fulfillment_tag: str = (
-            body.get("fulfillmentInfo", {}).get("tag", "").strip()
-        )
-        intent_display_name: str = (
-            body.get("intentInfo", {}).get("displayName", "").strip()
-        )
-        intent_name = fulfillment_tag or intent_display_name
+        # ── Auto-detect payload format and parse ─────────────────────────────
+        if _is_dialogflow_es(body):
+            intent_name, params = _parse_es_payload(body)
+            logger.info("Format: Dialogflow ES  |  Intent: '%s'", intent_name)
+        else:
+            intent_name, params = _parse_cx_payload(body)
+            logger.info("Format: Dialogflow CX  |  Intent: '%s'", intent_name)
 
-        # ── Resolve parameters ───────────────────────────────────────────────
-        # Prefer sessionInfo.parameters (accumulated across turns) over
-        # intentInfo.parameters for multi-turn support.
-        session_params: dict = body.get("sessionInfo", {}).get("parameters", {})
-        intent_params_raw: dict = body.get("intentInfo", {}).get("parameters", {})
-
-        # intentInfo parameters are wrapped: {"disease": {"resolvedValue": "..."}}
-        # Flatten to plain strings for uniform handling.
-        intent_params_flat: dict = {}
-        for k, v in intent_params_raw.items():
-            if isinstance(v, dict):
-                intent_params_flat[k] = v.get("resolvedValue", v.get("originalValue", ""))
-            else:
-                intent_params_flat[k] = v
-
-        # Merge: session params take precedence (they accumulate across turns)
-        params: dict = {**intent_params_flat, **session_params}
-
-        logger.info("Intent resolved: '%s'  |  Params: %s", intent_name, params)
+        logger.info("Params: %s", params)
 
         # ── Dispatch ─────────────────────────────────────────────────────────
         handler = INTENT_ROUTER.get(intent_name)
@@ -655,7 +699,6 @@ def webhook():
             logger.warning("No handler for intent: '%s'", intent_name)
             response = handle_unknown_intent(intent_name)
 
-        logger.info("Webhook response: %s", json.dumps(response, indent=2))
         return jsonify(response), 200
 
     except Exception as exc:  # pylint: disable=broad-except
