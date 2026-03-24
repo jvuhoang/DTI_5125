@@ -1,0 +1,1230 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns="http://www.semanticweb.org/NeuroTriageOntology#"
+     xml:base="http://www.semanticweb.org/NeuroTriageOntology"
+     xmlns:owl="http://www.w3.org/2002/07/owl#"
+     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:xml="http://www.w3.org/XML/1998/namespace"
+     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+     xmlns:NTO="http://www.semanticweb.org/NeuroTriageOntology#"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+
+    <owl:Ontology rdf:about="http://www.semanticweb.org/NeuroTriageOntology">
+        <dc:title>Neurodegenerative Disease Triage Ontology (NTO)</dc:title>
+        <dc:description>A triage-support ontology for differentiating Alzheimer&#39;s Disease, Amyotrophic Lateral Sclerosis (ALS), and Parkinson&#39;s Disease based on symptoms and influencing factors. Merges and curates content from NDDRFO (Cheng Bi) and a custom clinical symptom ontology.</dc:description>
+        <dc:creator>Merged from NDDRFO and custom OWL ontology for clinical chatbot triage</dc:creator>
+        <owl:versionInfo>1.0.0</owl:versionInfo>
+    </owl:Ontology>
+
+
+    <!-- =====================================================================
+         OBJECT PROPERTIES
+         ===================================================================== -->
+
+    <!-- hasPrimarySymptom: disease -> symptom (core/characteristic) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/NeuroTriageOntology#hasPrimarySymptom">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>hasPrimarySymptom</rdfs:label>
+        <rdfs:comment>Links a disease to its core, highly characteristic symptoms used for differential diagnosis.</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- hasSymptom: disease -> symptom (present but not primary) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/NeuroTriageOntology#hasSymptom">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>hasSymptom</rdfs:label>
+        <rdfs:comment>Links a disease to symptoms that are present but not pathognomonic.</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- hasOverlappingSymptom: disease -> symptom (shared across diseases) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/NeuroTriageOntology#hasOverlappingSymptom">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>hasOverlappingSymptom</rdfs:label>
+        <rdfs:comment>Links a disease to symptoms that also appear in one or more of the other diseases, reducing diagnostic specificity.</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- moreTypicalOf: symptom -> disease -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/NeuroTriageOntology#moreTypicalOf">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease"/>
+        <rdfs:label>moreTypicalOf</rdfs:label>
+        <rdfs:comment>Indicates which disease a symptom is most characteristic of.</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- belongsToSymptomCategory: symptom -> symptom category -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/NeuroTriageOntology#belongsToSymptomCategory">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SymptomCategory"/>
+        <rdfs:label>belongsToSymptomCategory</rdfs:label>
+        <rdfs:comment>Links a symptom to its clinical category (motor, cognitive, etc.).</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- hasRiskFactor: disease -> influencing factor (increases risk) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/NeuroTriageOntology#hasRiskFactor">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>hasRiskFactor</rdfs:label>
+        <rdfs:comment>Links a disease to factors that increase the likelihood of its development. Derived from NDDRFO harmful_effect.</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- hasProtectiveFactor: disease -> influencing factor (decreases risk) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/NeuroTriageOntology#hasProtectiveFactor">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>hasProtectiveFactor</rdfs:label>
+        <rdfs:comment>Links a disease to factors that reduce the likelihood of its development. Derived from NDDRFO beneficial_effect.</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- hasContradictoryFactor: disease -> influencing factor (mixed evidence) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/NeuroTriageOntology#hasContradictoryFactor">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>hasContradictoryFactor</rdfs:label>
+        <rdfs:comment>Links a disease to factors with conflicting evidence — reported as both beneficial and harmful in different studies.</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- belongsToFactorCategory: influencing factor -> factor category -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/NeuroTriageOntology#belongsToFactorCategory">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#FactorCategory"/>
+        <rdfs:label>belongsToFactorCategory</rdfs:label>
+        <rdfs:comment>Links an influencing factor to its top-level category (genetic, lifestyle, epidemiological).</rdfs:comment>
+    </owl:ObjectProperty>
+
+
+    <!-- =====================================================================
+         TOP-LEVEL CLASSES
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease">
+        <rdfs:label>Neurodegenerative Disease</rdfs:label>
+        <rdfs:comment>A neurological disease characterised by progressive atrophy or death of neurons. Scope of this ontology: Alzheimer&#39;s Disease, ALS, Parkinson&#39;s Disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Symptom">
+        <rdfs:label>Symptom</rdfs:label>
+        <rdfs:comment>A subjective or objective manifestation of a neurodegenerative disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#SymptomCategory">
+        <rdfs:label>Symptom Category</rdfs:label>
+        <rdfs:comment>A clinical grouping of symptoms by system or function.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor">
+        <rdfs:label>Influencing Factor</rdfs:label>
+        <rdfs:comment>Any genetic, lifestyle, or epidemiological factor that increases or decreases the risk of developing a neurodegenerative disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#FactorCategory">
+        <rdfs:label>Factor Category</rdfs:label>
+        <rdfs:comment>Top-level grouping of influencing factors: Genetic, Lifestyle, or Epidemiological.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         DISEASE SUBCLASSES
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#AlzheimerDisease">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease"/>
+        <rdfs:label>Alzheimer's Disease</rdfs:label>
+        <rdfs:comment>A progressive neurodegenerative disease primarily characterised by episodic memory impairment, language deterioration, and cognitive decline. Most common cause of dementia.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#ALS">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease"/>
+        <rdfs:label>Amyotrophic Lateral Sclerosis</rdfs:label>
+        <rdfs:comment>A fatal motor neuron disease characterised by progressive upper and lower motor neuron degeneration leading to limb weakness, bulbar dysfunction, and respiratory failure.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#ParkinsonDisease">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeurodegenerativeDisease"/>
+        <rdfs:label>Parkinson's Disease</rdfs:label>
+        <rdfs:comment>A progressive neurodegenerative disease characterised by dopaminergic neuron loss in the substantia nigra, producing a triad of resting tremor, rigidity, and bradykinesia.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         SYMPTOM CATEGORIES
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#MotorSymptom">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SymptomCategory"/>
+        <rdfs:label>Motor Symptom</rdfs:label>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#CognitiveSymptom">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SymptomCategory"/>
+        <rdfs:label>Cognitive Symptom</rdfs:label>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#SpeechSwallowingSymptom">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SymptomCategory"/>
+        <rdfs:label>Speech and Swallowing Symptom</rdfs:label>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#BehaviouralPsychiatricSymptom">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SymptomCategory"/>
+        <rdfs:label>Behavioural and Psychiatric Symptom</rdfs:label>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#AutonomicSymptom">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SymptomCategory"/>
+        <rdfs:label>Autonomic Symptom</rdfs:label>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#SleepSymptom">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SymptomCategory"/>
+        <rdfs:label>Sleep Symptom</rdfs:label>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#SensorySymptom">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SymptomCategory"/>
+        <rdfs:label>Sensory Symptom</rdfs:label>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#RespiratorySymptom">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SymptomCategory"/>
+        <rdfs:label>Respiratory Symptom</rdfs:label>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         SYMPTOM CLASSES — MOTOR
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#RestingTremor">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Resting Tremor</rdfs:label>
+        <rdfs:comment>Involuntary rhythmic oscillation of a limb at rest; hallmark of Parkinson&#39;s disease. Typically pill-rolling in PD.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Bradykinesia">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Bradykinesia</rdfs:label>
+        <rdfs:comment>Slowness of movement; a cardinal feature of Parkinson&#39;s disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Rigidity">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Rigidity</rdfs:label>
+        <rdfs:comment>Increased muscle tone and resistance to passive movement; cardinal feature of PD.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#PosturalInstability">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Postural Instability</rdfs:label>
+        <rdfs:comment>Impaired balance and coordination; increases fall risk in PD.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#GaitDisturbance">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Gait Disturbance</rdfs:label>
+        <rdfs:comment>Abnormal walking pattern including shuffling, festination, or freezing of gait; prominent in PD.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Akinesia">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Akinesia</rdfs:label>
+        <rdfs:comment>Absence or poverty of voluntary movement; closely related to bradykinesia in PD.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Hypomimia">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Hypomimia</rdfs:label>
+        <rdfs:comment>Reduced facial expression (masked face); common in PD due to facial muscle rigidity.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#LimbWeakness">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Limb Weakness</rdfs:label>
+        <rdfs:comment>Progressive weakness of arms and/or legs due to motor neuron degeneration; primary feature of ALS.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#AxialWeakness">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Axial Weakness</rdfs:label>
+        <rdfs:comment>Weakness of trunk muscles; occurs in ALS and contributes to head drop and trunk instability.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#MuscleWeakness">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Muscle Weakness</rdfs:label>
+        <rdfs:comment>General reduction in muscle strength; spans multiple muscle groups in ALS.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         SYMPTOM CLASSES — SPEECH AND SWALLOWING
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Dysarthria">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Dysarthria</rdfs:label>
+        <rdfs:comment>Impaired articulation of speech due to motor dysfunction; occurs in ALS (primary), PD, and late Alzheimer&#39;s.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Dysphagia">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Dysphagia</rdfs:label>
+        <rdfs:comment>Difficulty swallowing; overlapping symptom present in all three diseases but most prominent and early in ALS.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#BulbarDysfunction">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Bulbar Dysfunction</rdfs:label>
+        <rdfs:comment>Combined impairment of speech, swallowing, and tongue movement due to lower motor neuron loss; cardinal in ALS bulbar onset.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Hypophonia">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Hypophonia</rdfs:label>
+        <rdfs:comment>Abnormally soft or quiet speech; characteristic of PD due to reduced respiratory drive and vocal cord rigidity.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#PseudobulbarAffect">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Pseudobulbar Affect</rdfs:label>
+        <rdfs:comment>Involuntary episodes of laughing or crying disproportionate to emotional state; seen in ALS due to upper motor neuron involvement.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         SYMPTOM CLASSES — COGNITIVE
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#EpisodicMemoryImpairment">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Episodic Memory Impairment</rdfs:label>
+        <rdfs:comment>Inability to recall specific past events; the earliest and most characteristic symptom of Alzheimer&#39;s disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#MemoryImpairment">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Memory Impairment</rdfs:label>
+        <rdfs:comment>General reduction in memory capacity; hallmark of Alzheimer&#39;s disease across all stages.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#LanguageImpairment">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Language Impairment</rdfs:label>
+        <rdfs:comment>Aphasia or word-finding difficulty; primary cognitive symptom of Alzheimer&#39;s, particularly in later stages.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#ImpairedReasoning">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Impaired Reasoning</rdfs:label>
+        <rdfs:comment>Loss of executive function, abstract thinking, and judgment; prominent in Alzheimer&#39;s disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#CognitiveAndPsychiatricSymptomALS">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Cognitive and Psychiatric Symptoms (ALS)</rdfs:label>
+        <rdfs:comment>Frontotemporal-type cognitive changes and behavioural alterations occurring in a subset of ALS patients.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         SYMPTOM CLASSES — BEHAVIOURAL / PSYCHIATRIC
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Confusion">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Confusion</rdfs:label>
+        <rdfs:comment>Disorientation and impaired clarity of thought; overlapping symptom across all three diseases.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Depression">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Depression</rdfs:label>
+        <rdfs:comment>Persistent low mood and loss of interest; a common non-motor symptom in PD and Alzheimer&#39;s. Also a risk factor for both.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Anxiety">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Anxiety</rdfs:label>
+        <rdfs:comment>Excessive worry and fear; common non-motor feature of PD and Alzheimer&#39;s. Also a risk factor for Alzheimer&#39;s.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Hallucination">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Hallucination</rdfs:label>
+        <rdfs:comment>Perception without stimulus; predominantly visual hallucinations in PD, often medication-related.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#NeuropsychiatricDysfunction">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Neuropsychiatric Dysfunction</rdfs:label>
+        <rdfs:comment>Broad category of psychiatric symptoms in PD including impulse control disorders, psychosis, and dementia.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         SYMPTOM CLASSES — AUTONOMIC
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Constipation">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Constipation</rdfs:label>
+        <rdfs:comment>Infrequent bowel movements due to autonomic nervous system dysfunction; an early non-motor symptom of PD, often predating motor onset by years.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#AutonomicDysfunction">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Autonomic Dysfunction</rdfs:label>
+        <rdfs:comment>Failure of the autonomic nervous system causing orthostatic hypotension, sweating abnormalities, and urinary symptoms in PD.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#AutonomicSymptomsALS">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Autonomic Symptoms (ALS)</rdfs:label>
+        <rdfs:comment>Autonomic nervous system involvement in ALS including heart rate variability and sudomotor dysfunction.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#OlfactoryDysfunction">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Olfactory Dysfunction</rdfs:label>
+        <rdfs:comment>Loss or reduction of sense of smell; an early prodromal symptom of PD, often preceding motor symptoms.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         SYMPTOM CLASSES — SLEEP
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#SleepDisturbance">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Sleep Disturbance</rdfs:label>
+        <rdfs:comment>Disrupted sleep patterns present across all three diseases; includes insomnia and REM sleep behaviour disorder in PD.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         SYMPTOM CLASSES — RESPIRATORY
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#RespiratoryImpairment">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Respiratory Impairment</rdfs:label>
+        <rdfs:comment>Progressive respiratory muscle weakness leading to ventilatory failure; the primary cause of death in ALS.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         SYMPTOM CLASSES — SENSORY
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#SensorySymptomALS">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Symptom"/>
+        <rdfs:label>Sensory Symptom (ALS)</rdfs:label>
+        <rdfs:comment>Subtle sensory disturbances in ALS; less prominent than motor features but documented in some cases.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         FACTOR CATEGORIES
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#GeneticFactor">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#FactorCategory"/>
+        <rdfs:label>Genetic Factor</rdfs:label>
+        <rdfs:comment>Inherited or de novo gene variants, chromosomal loci, and epigenetic factors influencing disease risk.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#LifestyleFactor">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#FactorCategory"/>
+        <rdfs:label>Lifestyle Factor</rdfs:label>
+        <rdfs:comment>Modifiable behavioural and environmental factors including diet, physical activity, habits, and psychological state.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#EpidemiologicalFactor">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#FactorCategory"/>
+        <rdfs:label>Epidemiological Factor</rdfs:label>
+        <rdfs:comment>Demographic characteristics, comorbid conditions, environmental exposures, and medical history.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         INFLUENCING FACTOR CLASSES — GENETIC
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#APOE_e4">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>APOE e4 allele</rdfs:label>
+        <rdfs:comment>The strongest known genetic risk factor for late-onset Alzheimer&#39;s disease. APOE e4 homozygotes have up to 12x increased risk.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#APP_mutation">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>APP gene mutation</rdfs:label>
+        <rdfs:comment>Mutations in the Amyloid Precursor Protein gene; cause early-onset familial Alzheimer&#39;s disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#PSEN1_mutation">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>PSEN1 gene mutation</rdfs:label>
+        <rdfs:comment>Presenilin-1 mutations; the most common cause of early-onset familial Alzheimer&#39;s disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#LRRK2_mutation">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>LRRK2 gene mutation</rdfs:label>
+        <rdfs:comment>Leucine-rich repeat kinase 2 mutations; the most common genetic cause of familial Parkinson&#39;s disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#SNCA_mutation">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>SNCA gene mutation</rdfs:label>
+        <rdfs:comment>Alpha-synuclein gene mutations or triplication; strongly associated with familial Parkinson&#39;s disease and Lewy body pathology.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#C9orf72_repeat">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>C9orf72 hexanucleotide repeat expansion</rdfs:label>
+        <rdfs:comment>The most common genetic cause of both familial ALS and frontotemporal dementia. GGGGCC repeat expansion in chromosome 9p21.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#SOD1_mutation">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>SOD1 gene mutation</rdfs:label>
+        <rdfs:comment>Superoxide dismutase 1 mutations; the first identified genetic cause of familial ALS, accounting for ~20% of familial cases.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#FamilyHistory">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Family History of Neurodegenerative Disease</rdfs:label>
+        <rdfs:comment>First-degree relative with the same or related neurodegenerative disease significantly increases risk across all three diseases.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         INFLUENCING FACTOR CLASSES — LIFESTYLE
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#PhysicalInactivity">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Physical Inactivity</rdfs:label>
+        <rdfs:comment>Sedentary lifestyle associated with increased risk of Alzheimer&#39;s and Parkinson&#39;s. Conversely, aerobic exercise is protective.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#AerobicExercise">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Aerobic Exercise</rdfs:label>
+        <rdfs:comment>Regular aerobic physical activity is one of the strongest lifestyle protective factors against Alzheimer&#39;s disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Smoking">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Smoking</rdfs:label>
+        <rdfs:comment>Tobacco smoking is associated with increased risk of Alzheimer&#39;s disease. Has a paradoxical inverse relationship with PD risk in some studies.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#AlcoholConsumption">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Alcohol Consumption</rdfs:label>
+        <rdfs:comment>Heavy alcohol use increases Alzheimer&#39;s risk; light-moderate consumption shows contradictory evidence. Classified as contradictory factor.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#CoffeeDrinking">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Coffee Drinking</rdfs:label>
+        <rdfs:comment>Caffeine consumption shows contradictory evidence for Alzheimer&#39;s — some studies suggest protective effects, others harmful. Conflicting evidence in NDDRFO.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#MediterraneanDiet">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Mediterranean Diet</rdfs:label>
+        <rdfs:comment>Dietary pattern rich in vegetables, fish, and olive oil; protective against Alzheimer&#39;s disease. Source: NDDRFO beneficial_effect.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Obesity">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Obesity</rdfs:label>
+        <rdfs:comment>High BMI is a risk factor for Alzheimer&#39;s disease, likely through metabolic and vascular mechanisms.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Depression_Factor">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Depression (as risk factor)</rdfs:label>
+        <rdfs:comment>History of depression is associated with increased risk of Alzheimer&#39;s disease and Parkinson&#39;s disease. Distinct from depression as a symptom.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#LowEducation">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Low Level of Education</rdfs:label>
+        <rdfs:comment>Lower educational attainment is associated with reduced cognitive reserve and increased Alzheimer&#39;s risk.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#HighEducation">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>High Level of Education</rdfs:label>
+        <rdfs:comment>Higher educational attainment builds cognitive reserve; protective against Alzheimer&#39;s disease onset.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Stress">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Chronic Stress</rdfs:label>
+        <rdfs:comment>Prolonged psychological stress is a risk factor for Alzheimer&#39;s disease, possibly through cortisol-mediated hippocampal damage.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         INFLUENCING FACTOR CLASSES — EPIDEMIOLOGICAL
+         ===================================================================== -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#AdvancedAge">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Advanced Age</rdfs:label>
+        <rdfs:comment>Age is the single greatest non-genetic risk factor for all three diseases. Risk increases exponentially after age 65.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#HeadTrauma">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Head Trauma</rdfs:label>
+        <rdfs:comment>Traumatic brain injury is associated with increased risk of Alzheimer&#39;s disease. Repeated trauma linked to CTE and dementia.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Hypertension_Factor">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Hypertension (as risk factor)</rdfs:label>
+        <rdfs:comment>High blood pressure is associated with increased risk of Alzheimer&#39;s disease through cerebrovascular mechanisms. Shows contradictory evidence — some antihypertensives are protective.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#Diabetes_Factor">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Diabetes (as risk factor)</rdfs:label>
+        <rdfs:comment>Type 2 diabetes is associated with Alzheimer&#39;s disease risk, possibly through insulin resistance and glucose metabolism in the brain.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#AirPollution">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Air Pollution</rdfs:label>
+        <rdfs:comment>Particulate matter and toxic air pollutants are risk factors for Alzheimer&#39;s disease and have emerging evidence for Parkinson&#39;s risk.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#PesticideExposure">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Pesticide Exposure</rdfs:label>
+        <rdfs:comment>Occupational or environmental pesticide exposure is one of the most studied environmental risk factors for Parkinson&#39;s disease.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#OccupationalExposure">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Occupational Exposure</rdfs:label>
+        <rdfs:comment>Work-related exposure to heavy metals, solvents, and other neurotoxins. Contradictory evidence for Alzheimer&#39;s (some occupations protective). Strong risk for PD and ALS.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#MilitaryService">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Military Service</rdfs:label>
+        <rdfs:comment>Military service is associated with increased ALS risk, possibly through physical trauma, toxin exposure, and high-intensity physical activity.</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://www.semanticweb.org/NeuroTriageOntology#CerebrovascularDisease_Factor">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#InfluencingFactor"/>
+        <rdfs:label>Cerebrovascular Disease (as risk factor)</rdfs:label>
+        <rdfs:comment>History of stroke or other cerebrovascular disease is associated with increased Alzheimer&#39;s risk through vascular dementia overlap.</rdfs:comment>
+    </owl:Class>
+
+
+    <!-- =====================================================================
+         NAMED INDIVIDUALS — DISEASES
+         ===================================================================== -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#alzheimers_disease">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#AlzheimerDisease"/>
+        <rdfs:label>Alzheimer's Disease (instance)</rdfs:label>
+
+        <!-- Primary symptoms -->
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#episodic_memory_impairment"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#memory_impairment"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#language_impairment"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#impaired_reasoning"/>
+
+        <!-- Secondary symptoms -->
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#depression_symptom"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#anxiety_symptom"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#sleep_disturbance"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#hallucination_symptom"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#cognitive_psychiatric_als"/>
+
+        <!-- Overlapping symptoms -->
+        <NTO:hasOverlappingSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#confusion_symptom"/>
+        <NTO:hasOverlappingSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#dysphagia_symptom"/>
+
+        <!-- Risk factors -->
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#apoe_e4"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#app_mutation"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#psen1_mutation"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#family_history"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#advanced_age"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#head_trauma"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#hypertension_factor"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#diabetes_factor"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#air_pollution"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#obesity"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#depression_factor"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#low_education"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#stress"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#physical_inactivity"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#smoking"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#cerebrovascular_disease_factor"/>
+
+        <!-- Protective factors -->
+        <NTO:hasProtectiveFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#aerobic_exercise"/>
+        <NTO:hasProtectiveFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#mediterranean_diet"/>
+        <NTO:hasProtectiveFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#high_education"/>
+
+        <!-- Contradictory factors -->
+        <NTO:hasContradictoryFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#coffee_drinking"/>
+        <NTO:hasContradictoryFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#alcohol_consumption"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#als_disease">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#ALS"/>
+        <rdfs:label>ALS (instance)</rdfs:label>
+
+        <!-- Primary symptoms -->
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#limb_weakness"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#muscle_weakness"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#bulbar_dysfunction"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#respiratory_impairment"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#dysarthria_symptom"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#dysphagia_symptom"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#axial_weakness"/>
+
+        <!-- Secondary symptoms -->
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#pseudobulbar_affect"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#autonomic_symptoms_als"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#sensory_symptom_als"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#sleep_disturbance"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#cognitive_psychiatric_als"/>
+
+        <!-- Overlapping symptoms -->
+        <NTO:hasOverlappingSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#confusion_symptom"/>
+        <NTO:hasOverlappingSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#depression_symptom"/>
+
+        <!-- Risk factors -->
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#c9orf72_repeat"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#sod1_mutation"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#family_history"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#advanced_age"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#military_service"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#occupational_exposure"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#pesticide_exposure"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#ParkinsonDisease"/>
+        <rdfs:label>Parkinson's Disease (instance)</rdfs:label>
+
+        <!-- Primary symptoms -->
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#resting_tremor"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#bradykinesia_symptom"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#rigidity_symptom"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#postural_instability"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#gait_disturbance"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#akinesia_symptom"/>
+        <NTO:hasPrimarySymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#hypomimia_symptom"/>
+
+        <!-- Secondary symptoms -->
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#dysarthria_symptom"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#dysphagia_symptom"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#constipation_symptom"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#sleep_disturbance"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#hallucination_symptom"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#depression_symptom"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#anxiety_symptom"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#autonomic_dysfunction_symptom"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#olfactory_dysfunction"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#neuropsychiatric_dysfunction"/>
+        <NTO:hasSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#hypophonia_symptom"/>
+
+        <!-- Overlapping symptoms -->
+        <NTO:hasOverlappingSymptom rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#confusion_symptom"/>
+
+        <!-- Risk factors -->
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lrrk2_mutation"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#snca_mutation"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#family_history"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#advanced_age"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#pesticide_exposure"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#depression_factor"/>
+        <NTO:hasRiskFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#air_pollution"/>
+
+        <!-- Protective factors -->
+        <NTO:hasProtectiveFactor rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#aerobic_exercise"/>
+    </owl:NamedIndividual>
+
+
+    <!-- =====================================================================
+         NAMED INDIVIDUALS — SYMPTOMS
+         ===================================================================== -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#resting_tremor">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#RestingTremor"/>
+        <rdfs:label>resting_tremor</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#motor_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#bradykinesia_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Bradykinesia"/>
+        <rdfs:label>bradykinesia_symptom</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#motor_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#rigidity_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Rigidity"/>
+        <rdfs:label>rigidity_symptom</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#motor_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#postural_instability">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#PosturalInstability"/>
+        <rdfs:label>postural_instability</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#motor_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#gait_disturbance">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#GaitDisturbance"/>
+        <rdfs:label>gait_disturbance</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#motor_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#akinesia_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Akinesia"/>
+        <rdfs:label>akinesia_symptom</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#motor_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#hypomimia_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Hypomimia"/>
+        <rdfs:label>hypomimia_symptom</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#motor_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#limb_weakness">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#LimbWeakness"/>
+        <rdfs:label>limb_weakness</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#als_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#motor_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#axial_weakness">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#AxialWeakness"/>
+        <rdfs:label>axial_weakness</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#als_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#motor_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#muscle_weakness">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#MuscleWeakness"/>
+        <rdfs:label>muscle_weakness</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#als_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#motor_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#bulbar_dysfunction">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#BulbarDysfunction"/>
+        <rdfs:label>bulbar_dysfunction</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#als_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#speech_swallowing_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#respiratory_impairment">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#RespiratoryImpairment"/>
+        <rdfs:label>respiratory_impairment</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#als_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#respiratory_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#dysarthria_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Dysarthria"/>
+        <rdfs:label>dysarthria_symptom</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#als_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#speech_swallowing_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#dysphagia_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Dysphagia"/>
+        <rdfs:label>dysphagia_symptom</rdfs:label>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#speech_swallowing_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#hypophonia_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Hypophonia"/>
+        <rdfs:label>hypophonia_symptom</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#speech_swallowing_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#pseudobulbar_affect">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#PseudobulbarAffect"/>
+        <rdfs:label>pseudobulbar_affect</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#als_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#behavioural_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#episodic_memory_impairment">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#EpisodicMemoryImpairment"/>
+        <rdfs:label>episodic_memory_impairment</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#alzheimers_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#cognitive_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#memory_impairment">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#MemoryImpairment"/>
+        <rdfs:label>memory_impairment</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#alzheimers_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#cognitive_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#language_impairment">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#LanguageImpairment"/>
+        <rdfs:label>language_impairment</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#alzheimers_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#cognitive_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#impaired_reasoning">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#ImpairedReasoning"/>
+        <rdfs:label>impaired_reasoning</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#alzheimers_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#cognitive_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#cognitive_psychiatric_als">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#CognitiveAndPsychiatricSymptomALS"/>
+        <rdfs:label>cognitive_psychiatric_als</rdfs:label>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#cognitive_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#confusion_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Confusion"/>
+        <rdfs:label>confusion_symptom</rdfs:label>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#cognitive_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#depression_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Depression"/>
+        <rdfs:label>depression_symptom</rdfs:label>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#behavioural_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#anxiety_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Anxiety"/>
+        <rdfs:label>anxiety_symptom</rdfs:label>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#behavioural_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#hallucination_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Hallucination"/>
+        <rdfs:label>hallucination_symptom</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#behavioural_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#neuropsychiatric_dysfunction">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#NeuropsychiatricDysfunction"/>
+        <rdfs:label>neuropsychiatric_dysfunction</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#behavioural_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#constipation_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Constipation"/>
+        <rdfs:label>constipation_symptom</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#autonomic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#autonomic_dysfunction_symptom">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#AutonomicDysfunction"/>
+        <rdfs:label>autonomic_dysfunction_symptom</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#autonomic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#autonomic_symptoms_als">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#AutonomicSymptomsALS"/>
+        <rdfs:label>autonomic_symptoms_als</rdfs:label>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#autonomic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#olfactory_dysfunction">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#OlfactoryDysfunction"/>
+        <rdfs:label>olfactory_dysfunction</rdfs:label>
+        <NTO:moreTypicalOf rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#parkinsons_disease"/>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#autonomic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#sleep_disturbance">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SleepDisturbance"/>
+        <rdfs:label>sleep_disturbance</rdfs:label>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#sleep_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#sensory_symptom_als">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SensorySymptomALS"/>
+        <rdfs:label>sensory_symptom_als</rdfs:label>
+        <NTO:belongsToSymptomCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#sensory_category"/>
+    </owl:NamedIndividual>
+
+
+    <!-- =====================================================================
+         NAMED INDIVIDUALS — SYMPTOM CATEGORIES
+         ===================================================================== -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#motor_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#MotorSymptom"/>
+        <rdfs:label>motor_category</rdfs:label>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#cognitive_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#CognitiveSymptom"/>
+        <rdfs:label>cognitive_category</rdfs:label>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#speech_swallowing_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SpeechSwallowingSymptom"/>
+        <rdfs:label>speech_swallowing_category</rdfs:label>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#behavioural_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#BehaviouralPsychiatricSymptom"/>
+        <rdfs:label>behavioural_category</rdfs:label>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#autonomic_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#AutonomicSymptom"/>
+        <rdfs:label>autonomic_category</rdfs:label>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#sleep_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SleepSymptom"/>
+        <rdfs:label>sleep_category</rdfs:label>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#sensory_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SensorySymptom"/>
+        <rdfs:label>sensory_category</rdfs:label>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#respiratory_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#RespiratorySymptom"/>
+        <rdfs:label>respiratory_category</rdfs:label>
+    </owl:NamedIndividual>
+
+
+    <!-- =====================================================================
+         NAMED INDIVIDUALS — INFLUENCING FACTORS
+         ===================================================================== -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#apoe_e4">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#APOE_e4"/>
+        <rdfs:label>apoe_e4</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#genetic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#app_mutation">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#APP_mutation"/>
+        <rdfs:label>app_mutation</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#genetic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#psen1_mutation">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#PSEN1_mutation"/>
+        <rdfs:label>psen1_mutation</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#genetic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#lrrk2_mutation">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#LRRK2_mutation"/>
+        <rdfs:label>lrrk2_mutation</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#genetic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#snca_mutation">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SNCA_mutation"/>
+        <rdfs:label>snca_mutation</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#genetic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#c9orf72_repeat">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#C9orf72_repeat"/>
+        <rdfs:label>c9orf72_repeat</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#genetic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#sod1_mutation">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#SOD1_mutation"/>
+        <rdfs:label>sod1_mutation</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#genetic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#family_history">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#FamilyHistory"/>
+        <rdfs:label>family_history</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#genetic_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#aerobic_exercise">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#AerobicExercise"/>
+        <rdfs:label>aerobic_exercise</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#physical_inactivity">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#PhysicalInactivity"/>
+        <rdfs:label>physical_inactivity</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#smoking">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Smoking"/>
+        <rdfs:label>smoking</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#alcohol_consumption">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#AlcoholConsumption"/>
+        <rdfs:label>alcohol_consumption</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#coffee_drinking">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#CoffeeDrinking"/>
+        <rdfs:label>coffee_drinking</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#mediterranean_diet">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#MediterraneanDiet"/>
+        <rdfs:label>mediterranean_diet</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#obesity">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Obesity"/>
+        <rdfs:label>obesity</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#depression_factor">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Depression_Factor"/>
+        <rdfs:label>depression_factor</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#low_education">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#LowEducation"/>
+        <rdfs:label>low_education</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#high_education">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#HighEducation"/>
+        <rdfs:label>high_education</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#stress">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Stress"/>
+        <rdfs:label>stress</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#advanced_age">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#AdvancedAge"/>
+        <rdfs:label>advanced_age</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#epidemiological_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#head_trauma">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#HeadTrauma"/>
+        <rdfs:label>head_trauma</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#epidemiological_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#hypertension_factor">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Hypertension_Factor"/>
+        <rdfs:label>hypertension_factor</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#epidemiological_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#diabetes_factor">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#Diabetes_Factor"/>
+        <rdfs:label>diabetes_factor</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#epidemiological_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#air_pollution">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#AirPollution"/>
+        <rdfs:label>air_pollution</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#epidemiological_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#pesticide_exposure">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#PesticideExposure"/>
+        <rdfs:label>pesticide_exposure</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#epidemiological_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#occupational_exposure">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#OccupationalExposure"/>
+        <rdfs:label>occupational_exposure</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#epidemiological_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#military_service">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#MilitaryService"/>
+        <rdfs:label>military_service</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#epidemiological_category"/>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#cerebrovascular_disease_factor">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#CerebrovascularDisease_Factor"/>
+        <rdfs:label>cerebrovascular_disease_factor</rdfs:label>
+        <NTO:belongsToFactorCategory rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#epidemiological_category"/>
+    </owl:NamedIndividual>
+
+
+    <!-- =====================================================================
+         NAMED INDIVIDUALS — FACTOR CATEGORIES
+         ===================================================================== -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#genetic_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#GeneticFactor"/>
+        <rdfs:label>genetic_category</rdfs:label>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#lifestyle_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#LifestyleFactor"/>
+        <rdfs:label>lifestyle_category</rdfs:label>
+    </owl:NamedIndividual>
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/NeuroTriageOntology#epidemiological_category">
+        <rdf:type rdf:resource="http://www.semanticweb.org/NeuroTriageOntology#EpidemiologicalFactor"/>
+        <rdfs:label>epidemiological_category</rdfs:label>
+    </owl:NamedIndividual>
+
+</rdf:RDF>
