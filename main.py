@@ -85,27 +85,42 @@ def get_disease_from_symptom(symptom_label):
     return jsonify({"fulfillmentText": f"I don't have information on which diseases are linked to {symptom_label}."})
 
 def get_overlapping_symptoms(d1, d2):
-# If d2 is empty, check if d1 was sent as a list by Dialogflow 
-    # (Sometimes Dialogflow sends ['ALS', 'Parkinsons'] as one parameter)
-    if isinstance(d1, list) and len(d1) >= 2:
-        d2 = d1[1]
-        d1 = d1[0]
+    # 1. Flatten parameters: If they are lists, take the first item
+    if isinstance(d1, list) and len(d1) > 0: d1 = d1[0]
+    if isinstance(d2, list) and len(d2) > 0: d2 = d2[0]
 
+    # 2. Check if we have both diseases after flattening
     if not d1 or not d2: 
-        return jsonify({"fulfillmentText": "I recognized one disease, but I need two to find overlaps. (e.g., 'What are the shared symptoms between ALS and Parkinson's?')" })  
+        return jsonify({"fulfillmentText": "Please provide two diseases to compare (e.g., 'What symptoms do ALS and Parkinson's share?')."})
+    
+    # 3. Escape single quotes for SPARQL (e.g., Alzheimer's -> Alzheimer\\'s)
+    d1_escaped = d1.replace("'", "\\'")
+    d2_escaped = d2.replace("'", "\\'")
+
     query = f"""
-    SELECT ?sLabel WHERE {{
-        ?dis1 rdfs:label ?dl1 . FILTER(LCASE(STR(?dl1)) = LCASE("{d1}"))
-        ?dis2 rdfs:label ?dl2 . FILTER(LCASE(STR(?dl2)) = LCASE("{d2}"))
+    SELECT DISTINCT ?sLabel WHERE {{
+        ?dis1 rdfs:label ?dl1 . FILTER(CONTAINS(LCASE(STR(?dl1)), LCASE("{d1_escaped}")))
+        ?dis2 rdfs:label ?dl2 . FILTER(CONTAINS(LCASE(STR(?dl2)), LCASE("{d2_escaped}")))
+        
+        # Look for the same symptom ?s linked to both diseases
         ?dis1 <http://www.semanticweb.org/NeuroTriageOntology#hasSymptom> ?s .
         ?dis2 <http://www.semanticweb.org/NeuroTriageOntology#hasSymptom> ?s .
+        
         ?s rdfs:label ?sLabel .
     }}
     """
-    results = list(set([str(row.sLabel) for row in g.query(query)]))
-    if results:
-        return jsonify({"fulfillmentText": f"The shared symptoms between {d1} and {d2} are: {', '.join(results)}."})
-    return jsonify({"fulfillmentText": f"I couldn't find any overlapping symptoms between {d1} and {d2} in the ontology."})
+    
+    try:
+        results = list(set([str(row.sLabel) for row in g.query(query)]))
+        if results:
+            clean_results = [s.replace('_', ' ') for s in results]
+            return jsonify({"fulfillmentText": f"The overlapping symptoms between {d1} and {d2} are: {', '.join(clean_results)}."})
+        else:
+            return jsonify({"fulfillmentText": f"I couldn't find any overlapping symptoms between {d1} and {d2} in the ontology."})
+    except Exception as e:
+        # This prevents the 500 error by returning a message instead of crashing
+        print(f"Error executing query: {e}")
+        return jsonify({"fulfillmentText": "I encountered an error while searching the ontology. Please try again."})
 
 def get_risk_factors(disease_label):
     # If the user says "ALS", we want it to match "Amyotrophic Lateral Sclerosis"
