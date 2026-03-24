@@ -4,8 +4,7 @@ import rdflib
 
 app = Flask(__name__)
 
-# 1. Load the Ontology
-# This happens once when the server starts for high performance
+# Load Ontology
 g = rdflib.Graph()
 try:
     g.parse("NeuroTriageOntology.owl", format="xml")
@@ -13,153 +12,92 @@ try:
 except Exception as e:
     print(f"Error loading ontology: {e}")
 
-# Define Namespace
-NTO = rdflib.Namespace("http://www.semanticweb.org/NeuroTriageOntology#")
-RDFS = rdflib.RDFS
+# Define the standard Prefix for your project
+PREFIXES = """
+PREFIX nto: <http://www.semanticweb.org/NeuroTriageOntology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+"""
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     req = request.get_json(silent=True)
-    if not req:
-        return jsonify({"fulfillmentText": "Invalid request."})
+    if not req: return jsonify({"fulfillmentText": "Invalid request."})
 
     query_result = req.get('queryResult', {})
     intent_name = query_result.get('intent', {}).get('displayName')
     parameters = query_result.get('parameters', {})
-
-    # Route to the correct logic based on Intent Name
-    if intent_name == "GetPrimarySymptoms":
-        return get_primary_symptoms(parameters.get('disease'))
     
-    elif intent_name == "GetDiseaseFromSymptom":
-        return get_disease_from_symptom(parameters.get('symptom'))
+    # Helper to clean/flatten parameters (fixes the ['Parkinson's'] list error)
+    def clean(val):
+        if isinstance(val, list) and len(val) > 0: val = val[0]
+        return str(val).replace("'", "\\'").strip() if val else ""
+
+    if intent_name == "GetPrimarySymptoms":
+        return get_primary_symptoms(clean(parameters.get('disease')))
     
     elif intent_name == "GetOverlappingSymptoms":
-        # Supports parameters 'disease' and 'disease1' from your Dialogflow setup
-        d1 = parameters.get('disease')
-        d2 = parameters.get('disease1')
-        return get_overlapping_symptoms(d1, d2)
+        return get_overlapping(clean(parameters.get('disease')), clean(parameters.get('disease1')))
     
-    elif intent_name == "GetRiskFactors" or intent_name == "GetLifestyleRiskFactors":
-        return get_risk_factors(parameters.get('disease'))
+    elif intent_name == "GetRiskFactors":
+        return get_risk_factors(clean(parameters.get('disease')))
+
+    return jsonify({"fulfillmentText": "Webhook active. Intent not recognized."})
+
+def get_primary_symptoms(disease):
+    if not disease: return jsonify({"fulfillmentText": "Please specify a disease."})
     
-    elif intent_name == "DifferentiateByDisease":
-        d1 = parameters.get('disease')
-        d2 = parameters.get('disease1')
-        return differentiate_diseases(d1, d2)
-
-    return jsonify({"fulfillmentText": "I'm connected to the ontology, but I don't have logic for this intent yet."})
-
-# --- Helper Functions (The Logic) ---
-
-def get_primary_symptoms(disease_label):
-    if not disease_label: return jsonify({"fulfillmentText": "Which disease are you asking about?"})
-    
-    query = f"""
-    SELECT ?sLabel WHERE {{
+    # FIX: Explicit SELECT structure with WHERE and PREFIX
+    query = PREFIXES + f"""
+    SELECT DISTINCT ?sLabel
+    WHERE {{
         ?d rdfs:label ?dLabel .
-        FILTER(LCASE(STR(?dLabel)) = LCASE("{disease_label}"))
-        ?d <http://www.semanticweb.org/NeuroTriageOntology#hasPrimarySymptom> ?s .
+        FILTER(CONTAINS(LCASE(STR(?dLabel)), LCASE("{disease}")))
+        ?d nto:hasPrimarySymptom ?s .
         ?s rdfs:label ?sLabel .
     }}
     """
-    results = [str(row.sLabel) for row in g.query(query)]
-    if results:
-        return jsonify({"fulfillmentText": f"The primary symptoms for {disease_label} include: {', '.join(results)}."})
-    return jsonify({"fulfillmentText": f"I couldn't find specific primary symptoms for {disease_label} in my records."})
+    return execute_and_return(query, f"Primary symptoms for {disease}: ")
 
-def get_disease_from_symptom(symptom_label):
-    if not symptom_label: return jsonify({"fulfillmentText": "Which symptom are you concerned about?"})
+def get_overlapping(d1, d2):
+    if not d1 or not d2: return jsonify({"fulfillmentText": "I need two diseases to compare shared symptoms."})
     
-    query = f"""
-    SELECT ?dLabel WHERE {{
+    query = PREFIXES + f"""
+    SELECT DISTINCT ?sLabel
+    WHERE {{
+        ?dis1 rdfs:label ?dl1 . FILTER(CONTAINS(LCASE(STR(?dl1)), LCASE("{d1}")))
+        ?dis2 rdfs:label ?dl2 . FILTER(CONTAINS(LCASE(STR(?dl2)), LCASE("{d2}")))
+        ?dis1 nto:hasSymptom ?s .
+        ?dis2 nto:hasSymptom ?s .
         ?s rdfs:label ?sLabel .
-        FILTER(CONTAINS(LCASE(STR(?sLabel)), LCASE("{symptom_label}")))
-        ?d <http://www.semanticweb.org/NeuroTriageOntology#hasSymptom> ?s .
+    }}
+    """
+    return execute_and_return(query, f"Shared symptoms between {d1} and {d2}: ")
+
+def get_risk_factors(disease):
+    if not disease: return jsonify({"fulfillmentText": "Please specify a disease for risk factors."})
+    
+    query = PREFIXES + f"""
+    SELECT DISTINCT ?fLabel
+    WHERE {{
         ?d rdfs:label ?dLabel .
-    }}
-    """
-    results = list(set([str(row.dLabel) for row in g.query(query)])) # Unique list
-    if results:
-        return jsonify({"fulfillmentText": f"{symptom_label} can be associated with: {', '.join(results)}."})
-    return jsonify({"fulfillmentText": f"I don't have information on which diseases are linked to {symptom_label}."})
-
-def get_overlapping_symptoms(d1, d2):
-    # 1. Flatten parameters: If they are lists, take the first item
-    if isinstance(d1, list) and len(d1) > 0: d1 = d1[0]
-    if isinstance(d2, list) and len(d2) > 0: d2 = d2[0]
-
-    # 2. Check if we have both diseases after flattening
-    if not d1 or not d2: 
-        return jsonify({"fulfillmentText": "Please provide two diseases to compare (e.g., 'What symptoms do ALS and Parkinson's share?')."})
-    
-    # 3. Escape single quotes for SPARQL (e.g., Alzheimer's -> Alzheimer\\'s)
-    d1_escaped = d1.replace("'", "\\'")
-    d2_escaped = d2.replace("'", "\\'")
-
-    query = f"""
-    SELECT DISTINCT ?sLabel WHERE {{
-        ?dis1 rdfs:label ?dl1 . FILTER(CONTAINS(LCASE(STR(?dl1)), LCASE("{d1_escaped}")))
-        ?dis2 rdfs:label ?dl2 . FILTER(CONTAINS(LCASE(STR(?dl2)), LCASE("{d2_escaped}")))
-        
-        # Look for the same symptom ?s linked to both diseases
-        ?dis1 <http://www.semanticweb.org/NeuroTriageOntology#hasSymptom> ?s .
-        ?dis2 <http://www.semanticweb.org/NeuroTriageOntology#hasSymptom> ?s .
-        
-        ?s rdfs:label ?sLabel .
-    }}
-    """
-    
-    try:
-        results = list(set([str(row.sLabel) for row in g.query(query)]))
-        if results:
-            clean_results = [s.replace('_', ' ') for s in results]
-            return jsonify({"fulfillmentText": f"The overlapping symptoms between {d1} and {d2} are: {', '.join(clean_results)}."})
-        else:
-            return jsonify({"fulfillmentText": f"I couldn't find any overlapping symptoms between {d1} and {d2} in the ontology."})
-    except Exception as e:
-        # This prevents the 500 error by returning a message instead of crashing
-        print(f"Error executing query: {e}")
-        return jsonify({"fulfillmentText": "I encountered an error while searching the ontology. Please try again."})
-
-def get_risk_factors(disease_label):
-    # If the user says "ALS", we want it to match "Amyotrophic Lateral Sclerosis"
-    # We use CONTAINS and LCASE to make the search flexible
-    query = f"""
-    SELECT ?fLabel WHERE {{
-        ?d rdfs:label ?dLabel . 
-        FILTER(CONTAINS(LCASE(STR(?dLabel)), LCASE("{disease_label}")) || 
-               CONTAINS(LCASE("{disease_label}"), LCASE(STR(?dLabel))))
-        ?d <http://www.semanticweb.org/NeuroTriageOntology#hasRiskFactor> ?f .
+        FILTER(CONTAINS(LCASE(STR(?dLabel)), LCASE("{disease}")))
+        ?d nto:hasRiskFactor ?f .
         ?f rdfs:label ?fLabel .
     }}
     """
-    results = [str(row.fLabel) for row in g.query(query)]
-    if results:
-        return jsonify({"fulfillmentText": f"Identified risk factors for {disease_label}: {', '.join(results)}."})
-    return jsonify({"fulfillmentText": f"I couldn't find risk factors for {disease_label} in the ontology."})
+    return execute_and_return(query, f"Risk factors for {disease}: ")
 
-def differentiate_diseases(d1, d2):
-    # This combines logic to show what makes them different
-    if not d1 or not d2: return jsonify({"fulfillmentText": "Tell me which two diseases you'd like to differentiate."})
-    
-    # Logic: Find symptoms that are PRIMARY to d1 but NOT d2
-    query = f"""
-    SELECT ?sLabel WHERE {{
-        ?dis1 rdfs:label ?dl1 . FILTER(LCASE(STR(?dl1)) = LCASE("{d1}"))
-        ?dis1 <http://www.semanticweb.org/NeuroTriageOntology#hasPrimarySymptom> ?s .
-        ?s rdfs:label ?sLabel .
-        MINUS {{
-            ?dis2 rdfs:label ?dl2 . FILTER(LCASE(STR(?dl2)) = LCASE("{d2}"))
-            ?dis2 <http://www.semanticweb.org/NeuroTriageOntology#hasPrimarySymptom> ?s .
-        }}
-    }}
-    """
-    unique_to_d1 = [str(row.sLabel) for row in g.query(query)]
-    
-    response = f"While {d1} and {d2} may share some features, {d1} is more typically characterized by {', '.join(unique_to_d1[:3])}."
-    return jsonify({"fulfillmentText": response})
+def execute_and_return(query, prefix_text):
+    try:
+        results = [str(row.sLabel if hasattr(row, 'sLabel') else row.fLabel) for row in g.query(query)]
+        if results:
+            clean_list = ", ".join(list(set(results))).replace("_", " ")
+            return jsonify({"fulfillmentText": f"{prefix_text}{clean_list}."})
+        return jsonify({"fulfillmentText": f"I found no records matching that request in the NeuroTriage ontology."})
+    except Exception as e:
+        print(f"SPARQL Error: {e}")
+        return jsonify({"fulfillmentText": "I encountered a technical error querying the ontology."})
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
